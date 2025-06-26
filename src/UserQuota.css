@@ -1,0 +1,181 @@
+.quota-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.6);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+}
+
+.quota-modal {
+  background-color: #ffffff;
+  padding: 30px;
+  border-radius: 10px;
+  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+  width: 90%;
+  max-width: 450px;
+  position: relative;
+  animation: fadeIn 0.3s ease-out;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+.quota-close-btn {
+  position: absolute;
+  top: 15px;
+  right: 15px;
+  background: none;
+  border: none;
+  font-size: 28px;
+  color: #888;
+  cursor: pointer;
+  padding: 5px;
+  line-height: 1;
+  transition: color 0.2s ease-in-out;
+}
+
+.quota-close-btn:hover {
+  color: #333;
+}
+
+.quota-title {
+  color: #333;
+  font-size: 26px;
+  margin-bottom: 25px;
+  text-align: center;
+  border-bottom: 2px solid #007bff;
+  padding-bottom: 10px;
+}
+
+.quota-error-message {
+  color: #dc3545;
+  text-align: center;
+  margin-bottom: 15px;
+  font-weight: bold;
+}
+
+.quota-details {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.quota-item {
+  font-size: 17px;
+  color: #555;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 5px 0;
+  border-bottom: 1px dashed #eee;
+}
+
+.quota-item:last-child {
+  border-bottom: none;
+}
+
+.quota-item b {
+  color: #333;
+  min-width: 150px;
+}
+
+.quota-value {
+  font-weight: 600;
+  color: #007bff;
+}
+
+.quota-remaining {
+  color: #28a745;
+  font-weight: bold;
+}
+
+.quota-status {
+  padding: 4px 8px;
+  border-radius: 5px;
+  font-weight: bold;
+  font-size: 15px;
+}
+
+.quota-status.active {
+  background-color: #d4edda;
+  color: #155724;
+}
+
+.quota-status.expired {
+  background-color: #f8d7da;
+  color: #721c24;
+}
+
+.quota-loading {
+  text-align: center;
+  font-size: 18px;
+  color: #6c757d;
+  padding: 20px;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* Usage Graph Styles */
+.quota-usage-graph {
+  margin-top: 25px;
+  padding-top: 15px;
+  border-top: 1px solid #eee;
+  text-align: center;
+}
+
+.quota-usage-graph h3 {
+  font-size: 19px;
+  color: #333;
+  margin-bottom: 15px;
+}
+
+.progress-bar-container {
+  width: 100%;
+  background-color: #e0e0e0;
+  border-radius: 20px;
+  height: 30px;
+  overflow: hidden;
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.2);
+}
+
+.progress-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #007bff 0%, #0056b3 100%);
+  border-radius: 20px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  color: white;
+  font-weight: bold;
+  font-size: 14px;
+  transition: width 0.5s ease-in-out;
+  min-width: 80px;
+}
+
+.progress-text {
+  white-space: nowrap;
+  padding: 0 8px;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+}
+
+.usage-details {
+  margin-top: 10px;
+}
+
+.usage-text {
+  font-size: 14px;
+  color: #666;
+  font-weight: 500;
+}

@@ -1,217 +1,329 @@
-import React, { useState, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Phone } from 'lucide-react';
+import React, { useState, useRef, useMemo } from 'react';
+import { Phone, Upload, FileText, Eye, EyeOff, Download, RefreshCcw, Loader2, CheckCircle, AlertTriangle, XCircle, ChevronLeft, ChevronRight, Send, User, MessageSquare } from 'lucide-react';
 import axios from 'axios';
+// Imports for papaparse and xlsx are changed to use a CDN to resolve the bundling error.
+import Papa from 'https://esm.sh/papaparse';
+import * as XLSX from 'https://esm.sh/xlsx';
 
-function NewCall() {
-    const navigate = useNavigate();
+// To use this component, you'll need to install the following libraries:
+// npm install axios lucide-react
+
+const App = () => {
+
+    // --- STATE MANAGEMENT ---
+    const [userName, setUserName] = useState('');
+    const [prompt, setPrompt] = useState('');
     const [phoneNumber, setPhoneNumber] = useState('');
-    const [callerId, setCallerId] = useState('');
-    const [isLoading, setIsLoading] = useState(false);
-    const [error, setError] = useState(null);
-    const [callStatus, setCallStatus] = useState(null);
+    const [isCalling, setIsCalling] = useState(false);
+    const [callStatus, setCallStatus] = useState(null); // { type: 'success'/'error', message: '...' }
+
+    const [file, setFile] = useState(null);
+    const [fileData, setFileData] = useState(null); // { headers: [], data: [], ... }
+    const [isParsing, setIsParsing] = useState(false);
+    const [isSending, setIsSending] = useState(false);
     const [uploadStatus, setUploadStatus] = useState(null);
-    const [isUploading, setIsUploading] = useState(false);
+    const [error, setError] = useState(null);
+
+    const [showPreview, setShowPreview] = useState(true);
+    const [currentPage, setCurrentPage] = useState(1);
     const fileInputRef = useRef(null);
-    const baseURL = process.env.REACT_APP_API_URL || '';
 
-    const handleFileUpload = async (e) => {
-        const file = e.target.files[0];
-        if (!file) return;
+    // --- CONSTANTS ---
+    const ROWS_PER_PAGE = 15;
+    const MAX_FILE_SIZE_MB = 10;
+    const baseURL = process.env.REACT_APP_API_URL || 'http://localhost:8000'; 
+    const brandColors = {
+        yellow: '#f9bb2b',
+        darkBlue: '#07455c',
+        neutral: '#fefef9',
+        accentBlue: '#1c7d95',
+    };
 
-        // Check file type and size
-        const validTypes = ['text/csv', 'application/vnd.ms-excel', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'];
-        if (!validTypes.includes(file.type)) {
-            setError('Please upload a valid CSV or Excel file');
+    // --- EVENT HANDLERS ---
+
+    /**
+     * Handles the submission of the single call form.
+     */
+    const handleSingleCall = async (e) => {
+        e.preventDefault();
+        if (phoneNumber.length < 8 || phoneNumber.length > 10) {
+            setCallStatus({ type: 'error', message: 'Phone number must be between 8 and 10 digits.' });
             return;
         }
-
-        // Check file size (e.g., 5MB limit)
-        const maxSize = 5 * 1024 * 1024; // 5MB
-        if (file.size > maxSize) {
-            setError('File size must be less than 5MB');
-            return;
-        }
-
-        setIsUploading(true);
-        setError(null);
-
-        const formData = new FormData();
-        formData.append('file', file);
-        // Add encoding type to help server handle the file correctly
-        formData.append('encoding', 'utf-8');
-
+        setIsCalling(true);
+        setCallStatus(null);
         try {
-            const response = await axios.post(`${baseURL}/bulk-calls/`, formData, {
-                // const response = await axios.post('https://web-production-7204.up.railway.app/bulk-calls/', formData, {
-                headers: {
-                    'Content-Type': 'multipart/form-data',
-                },
-            });
-
-            setUploadStatus({
-                success: true,
-                message: 'File uploaded successfully',
-                jobId: response.data.job_id,
-                totalCalls: response.data.total_calls,
-            });
-
-        } catch (error) {
-            console.error('Error uploading file:', error);
-            const errorMessage = error.response?.data?.message ||
-                'Failed to upload file. Please ensure the file is properly encoded in UTF-8 format.';
-            setError(errorMessage);
+            const fullNumber = `+972${phoneNumber}`;
+            const payload = { 
+                phone_number: fullNumber,
+                user_name: userName || undefined,
+                prompt: prompt || undefined,
+            };
+            const response = await axios.post(`${baseURL}/outbound-call/`, payload);
+            setCallStatus({ type: 'success', message: `Call initiated successfully! SID: ${response.data.call_sid}` });
+            setPhoneNumber('');
+            setUserName('');
+            setPrompt('');
+        } catch (err) {
+            const errorMessage = err.response?.data?.message || 'Failed to initiate call.';
+            setCallStatus({ type: 'error', message: errorMessage });
         } finally {
-            setIsUploading(false);
-            if (fileInputRef.current) {
-                fileInputRef.current.value = '';
-            }
+            setIsCalling(false);
         }
     };
-    const handleSubmit = async (e) => {
-        e.preventDefault();
 
-        if (!phoneNumber) {
-            setError('Phone number is required');
+    /**
+     * Handles file selection and initiates parsing.
+     */
+    const handleFileSelect = (selectedFile) => {
+        if (!selectedFile) return;
+        handleReset();
+        setFile(selectedFile);
+        setIsParsing(true);
+        const validExtensions = ['csv', 'xls', 'xlsx'];
+        const fileExtension = selectedFile.name.split('.').pop().toLowerCase();
+        if (!validExtensions.includes(fileExtension) || selectedFile.size > MAX_FILE_SIZE_MB * 1024 * 1024) {
+            setError(`Invalid file. Please upload a CSV or Excel file under ${MAX_FILE_SIZE_MB}MB.`);
+            setIsParsing(false);
+            setFile(null);
             return;
         }
-        if (phoneNumber.length < 8 || phoneNumber.length > 10) {
-            setError('Phone number must be 8 to 10 digits');
-            return;
-        }
+        parseFile(selectedFile, fileExtension);
+    };
 
-        setIsLoading(true);
-        setError(null);
-
+    /**
+     * Parses the uploaded file based on its extension.
+     */
+    const parseFile = async (fileToParse, extension) => {
         try {
-            // Add +972 prefix before sending
-            const fullNumber = `+972${phoneNumber}`;
-            const response = await axios.post(`${baseURL}/outbound-call/`, {
-                phone_number: fullNumber,
-                caller_id: callerId || undefined
+            let parsedResult;
+            if (extension === 'csv') {
+                parsedResult = await parseCSV(fileToParse);
+            } else {
+                parsedResult = await parseExcel(fileToParse);
+            }
+            if (!parsedResult.data || parsedResult.data.length === 0) {
+                throw new Error('No data found in the file.');
+            }
+            setFileData({
+                ...parsedResult,
+                name: fileToParse.name,
+                size: (fileToParse.size / 1024).toFixed(2) + ' KB',
+                type: extension.toUpperCase()
             });
-
-            setCallStatus({
-                success: true,
-                message: 'Call initiated successfully',
-                callSid: response.data.call_sid,
-                callId: response.data.id
-            });
-
-            setTimeout(() => {
-                navigate(`/calls/${response.data.id}`);
-            }, 2000);
-
-        } catch (error) {
-            console.error('Error initiating call:', error);
-            setError(error.response?.data?.message || 'Failed to initiate call. Please try again.');
+            setShowPreview(true);
+        } catch (err) {
+            setError(err.message || 'Failed to parse file. Please check the format.');
+            setFile(null);
         } finally {
-            setIsLoading(false);
+            setIsParsing(false);
         }
+    };
+
+    /**
+     * Handles sending the bulk call data to the server.
+     */
+    const handleBulkCall = async () => {
+        if (!file) {
+            setError("No file selected to send.");
+            return;
+        }
+        setIsSending(true);
+        setUploadStatus(null);
+        setError(null);
+        const formData = new FormData();
+        formData.append('file', file);
+        try {
+            const response = await axios.post(`${baseURL}/bulk-calls/`, formData, {
+                headers: { 'Content-Type': 'multipart/form-data' },
+            });
+            setUploadStatus({
+                type: 'success',
+                message: `File uploaded! Job ID: ${response.data.job_id}. Total calls: ${response.data.total_calls}.`
+            });
+        } catch (err) {
+            const errorMessage = err.response?.data?.message || 'Failed to send file data.';
+            setUploadStatus({ type: 'error', message: errorMessage });
+        } finally {
+            setIsSending(false);
+        }
+    };
+
+    /**
+     * Resets the file upload section state.
+     */
+    const handleReset = () => {
+        setFile(null);
+        setFileData(null);
+        setIsParsing(false);
+        setIsSending(false);
+        setUploadStatus(null);
+        setError(null);
+        setCurrentPage(1);
+        if (fileInputRef.current) {
+            fileInputRef.current.value = '';
+        }
+    };
+
+    // --- PARSING LOGIC ---
+    const parseCSV = (file) => new Promise((resolve, reject) => {
+        Papa.parse(file, {
+            header: true,
+            skipEmptyLines: true,
+            complete: (results) => {
+                if (results.errors.length) return reject(new Error('CSV parsing error. Check file for malformed rows.'));
+                const cleanedData = results.data.map(row => Object.keys(row).reduce((acc, key) => ({ ...acc, [key.trim()]: row[key] }), {}));
+                resolve({ data: cleanedData, headers: Object.keys(cleanedData[0] || {}) });
+            },
+            error: (err) => reject(new Error(err.message))
+        });
+    });
+
+    const parseExcel = (file) => new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            try {
+                const workbook = XLSX.read(e.target.result, { type: 'binary' });
+                const sheetName = workbook.SheetNames[0];
+                const worksheet = workbook.Sheets[sheetName];
+                const json = XLSX.utils.sheet_to_json(worksheet);
+                resolve({ data: json, headers: Object.keys(json[0] || {}) });
+            } catch (err) {
+                reject(new Error('Could not read Excel file. It might be corrupted or in an unsupported format.'));
+            }
+        };
+        reader.onerror = () => reject(new Error('Failed to read file.'));
+        reader.readAsBinaryString(file);
+    });
+
+    // --- STYLES OBJECT ---
+    const styles = {
+        page: { fontFamily: "'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif", backgroundColor: brandColors.neutral, color: brandColors.darkBlue, minHeight: '100vh', padding: '2rem' },
+        header: { textAlign: 'center', marginBottom: '3rem' },
+        title: { fontSize: '2.5rem', fontWeight: '600', color: brandColors.darkBlue, margin: '0 0 0.5rem 0' },
+        subtitle: { fontSize: '1.1rem', color: brandColors.accentBlue, margin: 0 },
+        main: { display: 'flex', flexDirection: 'column', alignItems: 'stretch', gap: '2.5rem', maxWidth: '1000px', margin: '0 auto' },
+        card: { backgroundColor: '#ffffff', borderRadius: '12px', padding: '2rem', boxShadow: '0 4px 12px rgba(0, 0, 0, 0.08)', display: 'flex', flexDirection: 'column', gap: '1.5rem' },
+        cardTitle: { fontSize: '1.5rem', fontWeight: '500', color: brandColors.darkBlue, margin: 0, display: 'flex', alignItems: 'center' },
+        formGroup: { display: 'flex', flexDirection: 'column', gap: '0.5rem' },
+        label: { fontWeight: '500', fontSize: '0.9rem', color: brandColors.accentBlue },
+        inputGroup: { display: 'flex' },
+        inputPrefix: { padding: '0 12px', backgroundColor: '#f0f0f0', border: '1px solid #ccc', borderRight: 'none', borderRadius: '8px 0 0 8px', display: 'flex', alignItems: 'center', color: '#555', fontSize: '1rem' },
+        input: { flex: 1, padding: '12px 14px', fontSize: '1rem', border: '1px solid #ccc', borderRadius: '8px', outline: 'none', transition: 'border-color 0.2s, box-shadow 0.2s' },
+        inputWithPrefix: { borderRadius: '0 8px 8px 0' },
+        textarea: { padding: '12px 14px', fontSize: '1rem', border: '1px solid #ccc', borderRadius: '8px', outline: 'none', transition: 'border-color 0.2s, box-shadow 0.2s', minHeight: '80px', resize: 'vertical' },
+        buttonPrimary: { width: '100%', padding: '14px', fontSize: '1rem', fontWeight: 'bold', backgroundColor: brandColors.yellow, color: brandColors.darkBlue, border: 'none', borderRadius: '8px', cursor: 'pointer', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px', transition: 'background-color 0.2s, transform 0.1s', marginTop: '1rem' },
+        buttonDisabled: { backgroundColor: '#cccccc', color: '#666666', cursor: 'not-allowed' },
+        bulkHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'center' },
+        resetButton: { background: 'none', border: `1px solid ${brandColors.accentBlue}`, color: brandColors.accentBlue, padding: '6px 12px', borderRadius: '6px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.9rem', fontWeight: '500' },
+        dropzone: { border: `2px dashed ${brandColors.accentBlue}`, borderRadius: '12px', padding: '2.5rem', textAlign: 'center', backgroundColor: '#fafcff', cursor: 'pointer', transition: 'background-color 0.2s, border-color 0.2s', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' },
+        dropzoneParsing: { borderColor: brandColors.darkBlue, backgroundColor: '#eaf2f8' },
+        dropzoneText: { margin: 0, color: brandColors.darkBlue, fontSize: '1rem' },
+        dropzoneSubtext: { margin: 0, color: brandColors.accentBlue, fontSize: '0.85rem' },
+        statusMessage: { padding: '12px 16px', borderRadius: '8px', border: '1px solid', display: 'flex', alignItems: 'center', fontSize: '0.95rem' },
+        previewContainer: { border: '1px solid #e0e0e0', borderRadius: '8px', backgroundColor: '#fafafa', padding: '1rem', marginTop: '1rem' },
+        previewHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: '1rem', borderBottom: '1px solid #e0e0e0', marginBottom: '1rem' },
+        fileInfo: { display: 'flex', alignItems: 'center', gap: '12px' },
+        fileName: { fontWeight: '600', color: brandColors.darkBlue, margin: 0 },
+        fileMeta: { fontSize: '0.8rem', color: brandColors.accentBlue, margin: 0 },
+        toggleButton: { background: 'none', border: '1px solid #bdc3c7', borderRadius: '6px', padding: '6px 10px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', color: brandColors.darkBlue },
+        tableWrapper: { overflowX: 'auto', maxHeight: '450px', border: '1px solid #ddd', borderRadius: '4px' },
+        table: { width: '100%', borderCollapse: 'collapse' },
+        tableHead: { position: 'sticky', top: 0, backgroundColor: '#f1f3f5', zIndex: 1 },
+        tableTh: { padding: '12px 10px', textAlign: 'left', fontWeight: '600', fontSize: '0.8rem', color: brandColors.darkBlue, textTransform: 'uppercase', borderBottom: `2px solid ${brandColors.accentBlue}` },
+        tableRow: { borderBottom: '1px solid #e9ecef' },
+        tableTd: { padding: '10px', fontSize: '0.9rem', color: brandColors.darkBlue, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '150px' },
+        tableTdIndex: { padding: '10px', fontSize: '0.85rem', color: brandColors.accentBlue, textAlign: 'center', backgroundColor: '#f8f9fa' },
+        pagination: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: '1rem' },
+        pageButton: { background: '#fff', border: '1px solid #ccc', borderRadius: '6px', padding: '6px 12px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', color: brandColors.darkBlue },
+        pageInfo: { fontSize: '0.9rem', color: brandColors.accentBlue },
+        sendButton: { marginTop: '1.5rem', backgroundColor: brandColors.accentBlue, color: 'white' },
+        spinner: { animation: 'spin 1s linear infinite' },
+        '@keyframes spin': { from: { transform: 'rotate(0deg)' }, to: { transform: 'rotate(360deg)' } }
+    };
+
+    // --- RENDER LOGIC & COMPONENTS ---
+
+    const memoizedPreview = useMemo(() => {
+        if (!fileData) return null;
+        const startIndex = (currentPage - 1) * ROWS_PER_PAGE;
+        const paginatedData = fileData.data.slice(startIndex, startIndex + ROWS_PER_PAGE);
+        const totalPages = Math.ceil(fileData.data.length / ROWS_PER_PAGE);
+
+        return (
+            <div style={styles.previewContainer}>
+                <div style={styles.previewHeader}>
+                    <div style={styles.fileInfo}><FileText size={20} color={brandColors.accentBlue} />
+                        <div><p style={styles.fileName}>{fileData.name}</p><p style={styles.fileMeta}>{fileData.type} &bull; {fileData.size} &bull; {fileData.data.length} rows</p></div>
+                    </div>
+                    <button onClick={() => setShowPreview(!showPreview)} style={styles.toggleButton}>{showPreview ? <EyeOff size={16} /> : <Eye size={16} />}<span>{showPreview ? 'Hide' : 'Show'}</span></button>
+                </div>
+                {showPreview && (
+                    <><div style={styles.tableWrapper}>
+                        <table style={styles.table}>
+                            <thead style={styles.tableHead}><tr><th style={styles.tableTh}>#</th>{fileData.headers.map((header) => <th key={header} style={styles.tableTh}>{header}</th>)}</tr></thead>
+                            <tbody>{paginatedData.map((row, index) => (<tr key={startIndex + index} style={styles.tableRow}><td style={styles.tableTdIndex}>{startIndex + index + 1}</td>{fileData.headers.map((header) => (<td key={header} style={styles.tableTd}>{String(row[header] || '–')}</td>))}</tr>))}</tbody>
+                        </table>
+                    </div>
+                    {totalPages > 1 && (<div style={styles.pagination}><button onClick={() => setCurrentPage(p => p - 1)} disabled={currentPage === 1} style={styles.pageButton}><ChevronLeft size={16} /> Previous</button><span style={styles.pageInfo}>Page {currentPage} of {totalPages}</span><button onClick={() => setCurrentPage(p => p + 1)} disabled={currentPage === totalPages} style={styles.pageButton}>Next <ChevronRight size={16} /></button></div>)}</>
+                )}
+            </div>
+        );
+    }, [fileData, currentPage, showPreview, brandColors]);
+    
+    const StatusMessage = ({ type, message }) => {
+        const icons = { success: <CheckCircle color="#27ae60" />, error: <AlertTriangle color="#c0392b" />, info: <AlertTriangle color={brandColors.accentBlue} /> };
+        const statusStyles = { success: { backgroundColor: '#eafaf1', color: '#27ae60', borderColor: '#a3e4c8' }, error: { backgroundColor: '#f9ebea', color: '#c0392b', borderColor: '#f5b7b1' }, info: { backgroundColor: '#eaf2f8', color: brandColors.accentBlue, borderColor: '#aed6f1' } };
+        return (<div style={{ ...styles.statusMessage, ...statusStyles[type] }}>{icons[type]}<p style={{ margin: 0, marginLeft: '10px' }}>{message}</p></div>);
     };
 
     return (
-        <div className="new-call">
-            <h2>Initiate New Call</h2>
-
-            {callStatus && callStatus.success && (
-                <div className="call-success-message">
-                    <p>{callStatus.message}</p>
-                    <p>Call ID: {callStatus.callSid}</p>
-                    <p>Redirecting to call details...</p>
-                </div>
-            )}
-
-            {!callStatus && (
-                <div className="new-call-form-container">
-                    <form onSubmit={handleSubmit} className="new-call-form">
-                        {error && <div className="error-message">{error}</div>}
-
-                        <div className="form-group">
-                            <label htmlFor="phoneNumber">Phone Number*</label>
-                            <div style={{ display: 'flex', alignItems: 'center' }}>
-                                <span style={{ padding: '0 6px', background: '#eee', border: '1px solid #ccc', borderRight: 'none', borderRadius: '4px 0 0 4px' }}>+972</span>
-                                <input
-                                    type="tel"
-                                    id="phoneNumber"
-                                    value={phoneNumber}
-                                    onChange={(e) => {
-                                        // Only allow digits, max 10 digits
-                                        const val = e.target.value.replace(/\D/g, '').slice(0, 10);
-                                        setPhoneNumber(val);
-                                    }}
-                                    placeholder="Enter number (e.g. 501234567)"
-                                    style={{ borderRadius: '0 4px 4px 0' }}
-                                    required
-                                />
-                            </div>
-                            <small>Enter the phone number without the +972 prefix (e.g., 501234567)</small>
+        <div style={styles.page}>
+            <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
+            <header style={styles.header}><h1 style={styles.title}>Outbound Call Center</h1><p style={styles.subtitle}>Initiate single calls or upload a file for bulk calling campaigns.</p></header>
+            <main style={styles.main}>
+                <div style={styles.card}>
+                    <h2 style={styles.cardTitle}><Phone size={22} style={{ marginRight: '10px' }} />Make a Single Call</h2>
+                    <form onSubmit={handleSingleCall} style={{display: 'flex', flexDirection: 'column', gap: '1rem'}}>
+                        <div style={styles.formGroup}>
+                            <label htmlFor="userName" style={styles.label}>Name (Optional)</label>
+                            <input id="userName" type="text" style={styles.input} placeholder="e.g., Donald Trump" value={userName} onChange={(e) => setUserName(e.target.value)} />
                         </div>
-
-                        {/* <div className="form-group">
-                            <label htmlFor="callerId">Caller ID (Optional)</label>
-                            <input
-                                type="tel"
-                                id="callerId"
-                                value={callerId}
-                                onChange={(e) => setCallerId(e.target.value)}
-                                placeholder="+1234567890"
-                            />
-                            <small>The number that will be displayed to the recipient</small>
-                        </div> */}
-
-                        <button
-                            type="submit"
-                            className="btn-primary"
-                            disabled={isLoading}
-                        >
-                            {isLoading ? 'Initiating Call...' : 'Start Call'}
-                            <Phone size={16} />
+                         <div style={styles.formGroup}>
+                            <label htmlFor="phoneNumber" style={styles.label}>Phone Number*</label>
+                            <div style={styles.inputGroup}><span style={styles.inputPrefix}>+972</span><input id="phoneNumber" type="tel" style={{...styles.input, ...styles.inputWithPrefix}} placeholder="50 123 4567" value={phoneNumber} onChange={(e) => setPhoneNumber(e.target.value.replace(/\D/g, '').slice(0, 10))} required /></div>
+                        </div>
+                        <div style={styles.formGroup}>
+                             <label htmlFor="prompt" style={styles.label}>Prompt (Optional)</label>
+                             <textarea id="prompt" style={styles.textarea} placeholder="Enter a custom prompt for the call..." value={prompt} onChange={(e) => setPrompt(e.target.value)} />
+                        </div>
+                        <button type="submit" disabled={isCalling || !phoneNumber} style={{...styles.buttonPrimary, ...( (isCalling || !phoneNumber) ? styles.buttonDisabled : {})}}>
+                            {isCalling ? <Loader2 size={20} style={styles.spinner} /> : 'Initiate Call'}
                         </button>
                     </form>
-                    <div className="bulk-upload-section">
-                        <h3>Bulk Upload</h3>
-                        <div className="form-group">
-                            <label htmlFor="fileUpload">Upload CSV/Excel File</label>
-                            <input
-                                type="file"
-                                id="fileUpload"
-                                accept=".csv,.xls,.xlsx"
-                                onChange={handleFileUpload}
-                                disabled={isUploading}
-                                ref={fileInputRef}
-                            />
-                            <small>Upload a file containing columns for name and phone number</small>
-                        </div>
-
-                        {isUploading && (
-                            <div className="upload-status">
-                                <p>Uploading file...</p>
-                            </div>
-                        )}
-
-                        {uploadStatus && uploadStatus.success && (
-                            <div className="upload-success-message">
-                                <p>{uploadStatus.message}</p>
-                                <p>Job ID: {uploadStatus.jobId}</p>
-                                <p>Total calls to be made: {uploadStatus.totalCalls}</p>
-                            </div>
-                        )}
-                    </div>
-                    <div className="call-instructions">
-                        <h3>How it works</h3>
-                        <ol>
-                            <li>Enter the phone number you want to call</li>
-                            <li>Optionally set a caller ID that will be shown to the recipient</li>
-                            <li>Click "Start Call" to initiate the outbound call via Twilio</li>
-                            <li>You'll be redirected to the call details page once the call is connected</li>
-                        </ol>
-                        <p><strong>Note:</strong> Standard call rates may apply based on your Twilio plan.</p>
-                    </div>
+                    {callStatus && <StatusMessage type={callStatus.type} message={callStatus.message} />}
                 </div>
-            )}
+                <div style={styles.card}>
+                    <div style={styles.bulkHeader}><h2 style={styles.cardTitle}><Upload size={22} style={{ marginRight: '10px' }}/>Bulk Calling from File</h2>{file && (<button onClick={handleReset} style={styles.resetButton}><RefreshCcw size={14} /> Reset</button>)}</div>
+                    {!fileData && (
+                        <div style={isParsing ? {...styles.dropzone, ...styles.dropzoneParsing} : styles.dropzone} onClick={() => fileInputRef.current.click()} onDragOver={(e) => e.preventDefault()} onDrop={(e) => { e.preventDefault(); if (e.dataTransfer.files && e.dataTransfer.files[0]) { handleFileSelect(e.dataTransfer.files[0]); }}}>
+                            <input type="file" ref={fileInputRef} onChange={(e) => handleFileSelect(e.target.files[0])} accept=".csv,.xls,.xlsx" style={{ display: 'none' }} />
+                            {isParsing ? (<><Loader2 size={32} style={styles.spinner} color={brandColors.accentBlue}/><p style={styles.dropzoneText}>Parsing file...</p></>) : (<><Upload size={32} color={brandColors.accentBlue}/><p style={styles.dropzoneText}><strong>Drag & drop a file here</strong> or click to select</p><p style={styles.dropzoneSubtext}>Supports CSV, XLS, XLSX up to 10MB</p></>)}
+                        </div>
+                    )}
+                    {error && <StatusMessage type="error" message={error} />}
+                    {memoizedPreview}
+                    {fileData && !uploadStatus && (
+                        <button onClick={handleBulkCall} disabled={isSending} style={{...styles.buttonPrimary, ...styles.sendButton, ...((isSending) ? styles.buttonDisabled : {})}}>
+                            {isSending ? <Loader2 size={20} style={styles.spinner} /> : <Send size={18} />}
+                            {isSending ? 'Sending...' : `Send ${fileData.data.length} Records`}
+                        </button>
+                    )}
+                    {uploadStatus && <StatusMessage type={uploadStatus.type} message={uploadStatus.message} />}
+                </div>
+            </main>
         </div>
     );
-}
+};
 
-export default NewCall;
+export default App;

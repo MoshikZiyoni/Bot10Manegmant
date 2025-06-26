@@ -1,21 +1,26 @@
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-import Dashboard from './components/Dashboard';
-import CallList from './components/CallList';
-import CallDetail from './components/CallDetail';
-import NewCall from './components/NewCall';
+import { BrowserRouter as Router, Routes, Route, Navigate, Link } from 'react-router-dom';
+// import Dashboard from './components/Dashboard';
+// import CallList from './components/CallList';
+// import CallDetail from './components/CallDetail';
+// import NewCall from './components/NewCall';
 import Login from './auth/Login';
 import ProtectedRoute from './auth/protected-route';
 import NavBar from './components/NavBar';
 import './App.css';
 import { useAuth0 } from "@auth0/auth0-react";
-import { useEffect } from'react';
+import { useEffect, lazy, Suspense } from 'react';
+import ContactForm from './components/Contact';
 function App() {
   const { isAuthenticated, isLoading, loginWithRedirect, user, logout } = useAuth0();
+  const Dashboard = lazy(() => import('./components/Dashboard'));
+  const CallList = lazy(() => import('./components/CallList'));
+  const CallDetail = lazy(() => import('./components/CallDetail'));
+  const NewCall = lazy(() => import('./components/NewCall'));
   const ALLOWED_EMAILS = (process.env.REACT_APP_ALLOWED_EMAILS || "")
     .split(",")
     .map(email => email.trim())
     .filter(Boolean);
-    
+
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {
       loginWithRedirect();
@@ -41,12 +46,12 @@ function App() {
   }
   return (
 
-
+    <Suspense fallback={<div>Loading...</div>}>
       <Router>
         <div className="app-container">
           <Routes>
             <Route path="/login" element={<Login />} />
-            
+
             <Route path="/" element={
               <ProtectedRoute>
                 <NavBar />
@@ -55,7 +60,7 @@ function App() {
                 </main>
               </ProtectedRoute>
             } />
-            
+
             <Route path="/calls" element={
               <ProtectedRoute>
                 <NavBar />
@@ -64,7 +69,7 @@ function App() {
                 </main>
               </ProtectedRoute>
             } />
-            
+
             <Route path="/calls/:id" element={
               <ProtectedRoute>
                 <NavBar />
@@ -73,7 +78,7 @@ function App() {
                 </main>
               </ProtectedRoute>
             } />
-            
+
             <Route path="/calls/new" element={
               <ProtectedRoute>
                 <NavBar />
@@ -82,16 +87,31 @@ function App() {
                 </main>
               </ProtectedRoute>
             } />
+
+
+
+            <Route path="/contact" element={
+              <ProtectedRoute>
+                <NavBar />
+                <main className="app-content">
+                  <ContactForm />
+                </main>
+              </ProtectedRoute>
+            }></Route>
             
             {/* Redirect to login if no match */}
             {/* <Route path="*" element={<Navigate to="/login" />} /> */}
           </Routes>
-          
+
           <footer className="app-footer">
-            <p>© 2025 Call Management System</p>
+            <p>© 2025 Call Management System <Link to="/contact" style={{ marginLeft: 10, color: "#1c7895", textDecoration: "underline" }}>
+              צור קשר
+            </Link></p>
+
           </footer>
         </div>
       </Router>
+    </Suspense>
   );
 }
 
