@@ -1,9 +1,11 @@
 import React, { useState, useRef, useMemo } from 'react';
 import { Phone, Upload, FileText, Eye, EyeOff, Download, RefreshCcw, Loader2, CheckCircle, AlertTriangle, XCircle, ChevronLeft, ChevronRight, Send, User, MessageSquare } from 'lucide-react';
 import axios from 'axios';
+import { useAuth0 } from '@auth0/auth0-react';
 // Imports for papaparse and xlsx are changed to use a CDN to resolve the bundling error.
 import Papa from 'https://esm.sh/papaparse';
 import * as XLSX from 'https://esm.sh/xlsx';
+import { Link } from 'react-router-dom';
 
 // To use this component, you'll need to install the following libraries:
 // npm install axios lucide-react
@@ -16,13 +18,15 @@ const App = () => {
     const [phoneNumber, setPhoneNumber] = useState('');
     const [isCalling, setIsCalling] = useState(false);
     const [callStatus, setCallStatus] = useState(null); // { type: 'success'/'error', message: '...' }
-
+    const { user } = useAuth0();
+    const userEmail = user?.email;
     const [file, setFile] = useState(null);
     const [fileData, setFileData] = useState(null); // { headers: [], data: [], ... }
     const [isParsing, setIsParsing] = useState(false);
     const [isSending, setIsSending] = useState(false);
     const [uploadStatus, setUploadStatus] = useState(null);
     const [error, setError] = useState(null);
+    const [quotaModalOpen, setQuotaModalOpen] = useState(false);
 
     const [showPreview, setShowPreview] = useState(true);
     const [currentPage, setCurrentPage] = useState(1);
@@ -31,7 +35,7 @@ const App = () => {
     // --- CONSTANTS ---
     const ROWS_PER_PAGE = 15;
     const MAX_FILE_SIZE_MB = 10;
-    const baseURL = process.env.REACT_APP_API_URL || 'http://localhost:8000'; 
+    const baseURL = process.env.REACT_APP_API_URL || 'http://localhost:8000';
     const brandColors = {
         yellow: '#f9bb2b',
         darkBlue: '#07455c',
@@ -45,32 +49,39 @@ const App = () => {
      * Handles the submission of the single call form.
      */
     const handleSingleCall = async (e) => {
-        e.preventDefault();
-        if (phoneNumber.length < 8 || phoneNumber.length > 10) {
-            setCallStatus({ type: 'error', message: 'Phone number must be between 8 and 10 digits.' });
-            return;
-        }
-        setIsCalling(true);
-        setCallStatus(null);
-        try {
-            const fullNumber = `+972${phoneNumber}`;
-            const payload = { 
-                phone_number: fullNumber,
-                user_name: userName || undefined,
-                prompt: prompt || undefined,
-            };
-            const response = await axios.post(`${baseURL}/outbound-call/`, payload);
-            setCallStatus({ type: 'success', message: `Call initiated successfully! SID: ${response.data.call_sid}` });
-            setPhoneNumber('');
-            setUserName('');
-            setPrompt('');
-        } catch (err) {
-            const errorMessage = err.response?.data?.message || 'Failed to initiate call.';
+    e.preventDefault();
+    if (phoneNumber.length < 8 || phoneNumber.length > 10) {
+        setCallStatus({ type: 'error', message: 'Phone number must be between 8 and 10 digits.' });
+        return;
+    }
+    setIsCalling(true);
+    setCallStatus(null);
+    try {
+        const fullNumber = `+972${phoneNumber}`;
+        const payload = {
+            phone_number: fullNumber,
+            user_name: userName || undefined,
+            email: userEmail,
+            prompt: prompt || undefined,
+        };
+        const response = await axios.post(`${baseURL}/outbound-call/`, payload);
+        setCallStatus({ type: 'success', message: `Call initiated successfully! SID: ${response.data.call_sid}` });
+        setPhoneNumber('');
+        setUserName('');
+        setPrompt('');
+    } catch (err) {
+        const errorMessage = err.response?.data?.message || err.response?.data?.error || 'Failed to initiate call.';
+        if (
+            errorMessage === "Quota exceeded or expired. Please contact support."
+        ) {
+            setQuotaModalOpen(true);
+        } else {
             setCallStatus({ type: 'error', message: errorMessage });
-        } finally {
-            setIsCalling(false);
         }
-    };
+    } finally {
+        setIsCalling(false);
+    }
+};
 
     /**
      * Handles file selection and initiates parsing.
@@ -123,32 +134,38 @@ const App = () => {
     /**
      * Handles sending the bulk call data to the server.
      */
-    const handleBulkCall = async () => {
-        if (!file) {
-            setError("No file selected to send.");
-            return;
-        }
-        setIsSending(true);
-        setUploadStatus(null);
-        setError(null);
-        const formData = new FormData();
-        formData.append('file', file);
-        try {
-            const response = await axios.post(`${baseURL}/bulk-calls/`, formData, {
-                headers: { 'Content-Type': 'multipart/form-data' },
-            });
-            setUploadStatus({
-                type: 'success',
-                message: `File uploaded! Job ID: ${response.data.job_id}. Total calls: ${response.data.total_calls}.`
-            });
-        } catch (err) {
-            const errorMessage = err.response?.data?.message || 'Failed to send file data.';
+   const handleBulkCall = async () => {
+    if (!file) {
+        setError("No file selected to send.");
+        return;
+    }
+    setIsSending(true);
+    setUploadStatus(null);
+    setError(null);
+    const formData = new FormData();
+    formData.append('file', file, 'email');
+    formData.append('email', user?.email);
+    try {
+        const response = await axios.post(`${baseURL}/bulk-calls/`, formData, {
+            headers: { 'Content-Type': 'multipart/form-data' },
+        });
+        setUploadStatus({
+            type: 'success',
+            message: `File uploaded! Job ID: ${response.data.job_id}. Total calls: ${response.data.total_calls}.`
+        });
+    } catch (err) {
+        const errorMessage = err.response?.data?.message || err.response?.data?.error || 'Failed to send file data.';
+        if (
+            errorMessage === "Quota exceeded or expired. Please contact support."
+        ) {
+            setQuotaModalOpen(true);
+        } else {
             setUploadStatus({ type: 'error', message: errorMessage });
-        } finally {
-            setIsSending(false);
         }
-    };
-
+    } finally {
+        setIsSending(false);
+    }
+};
     /**
      * Resets the file upload section state.
      */
@@ -265,12 +282,12 @@ const App = () => {
                             <tbody>{paginatedData.map((row, index) => (<tr key={startIndex + index} style={styles.tableRow}><td style={styles.tableTdIndex}>{startIndex + index + 1}</td>{fileData.headers.map((header) => (<td key={header} style={styles.tableTd}>{String(row[header] || '–')}</td>))}</tr>))}</tbody>
                         </table>
                     </div>
-                    {totalPages > 1 && (<div style={styles.pagination}><button onClick={() => setCurrentPage(p => p - 1)} disabled={currentPage === 1} style={styles.pageButton}><ChevronLeft size={16} /> Previous</button><span style={styles.pageInfo}>Page {currentPage} of {totalPages}</span><button onClick={() => setCurrentPage(p => p + 1)} disabled={currentPage === totalPages} style={styles.pageButton}>Next <ChevronRight size={16} /></button></div>)}</>
+                        {totalPages > 1 && (<div style={styles.pagination}><button onClick={() => setCurrentPage(p => p - 1)} disabled={currentPage === 1} style={styles.pageButton}><ChevronLeft size={16} /> Previous</button><span style={styles.pageInfo}>Page {currentPage} of {totalPages}</span><button onClick={() => setCurrentPage(p => p + 1)} disabled={currentPage === totalPages} style={styles.pageButton}>Next <ChevronRight size={16} /></button></div>)}</>
                 )}
             </div>
         );
     }, [fileData, currentPage, showPreview, brandColors]);
-    
+
     const StatusMessage = ({ type, message }) => {
         const icons = { success: <CheckCircle color="#27ae60" />, error: <AlertTriangle color="#c0392b" />, info: <AlertTriangle color={brandColors.accentBlue} /> };
         const statusStyles = { success: { backgroundColor: '#eafaf1', color: '#27ae60', borderColor: '#a3e4c8' }, error: { backgroundColor: '#f9ebea', color: '#c0392b', borderColor: '#f5b7b1' }, info: { backgroundColor: '#eaf2f8', color: brandColors.accentBlue, borderColor: '#aed6f1' } };
@@ -281,40 +298,81 @@ const App = () => {
         <div style={styles.page}>
             <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
             <header style={styles.header}><h1 style={styles.title}>Outbound Call Center</h1><p style={styles.subtitle}>Initiate single calls or upload a file for bulk calling campaigns.</p></header>
-            <main style={styles.main}>
+            {quotaModalOpen && (
+    <div style={{
+        position: 'fixed',
+        top: 0, left: 0, right: 0, bottom: 0,
+        background: 'rgba(0,0,0,0.5)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        zIndex: 9999
+    }}>
+        <div style={{
+            background: '#fff',
+            borderRadius: '16px',
+            padding: '2.5rem 2rem',
+            boxShadow: '0 8px 32px rgba(0,0,0,0.18)',
+            maxWidth: '400px',
+            textAlign: 'center',
+            position: 'relative'
+        }}>
+            <XCircle size={28} color="#c0392b" style={{ marginBottom: '1rem' }} />
+            <h2 style={{ color: '#c0392b', marginBottom: '1rem' }}>Quota Exceeded</h2>
+            <p style={{ color: '#555', marginBottom: '1.5rem' }}>
+                Your call quota has expired or been exceeded.<br />
+                Please <Link to="/contact">contact support</Link> to continue using the service.
+            </p>
+            <button
+                onClick={() => setQuotaModalOpen(false)}
+                style={{
+                    background: '#f9bb2b',
+                    color: '#07455c',
+                    border: 'none',
+                    borderRadius: '8px',
+                    padding: '12px 24px',
+                    fontWeight: 'bold',
+                    cursor: 'pointer',
+                    fontSize: '1rem'
+                }}
+            >
+                Close
+            </button>
+        </div>
+    </div>
+)}
+             <main style={styles.main}>
                 <div style={styles.card}>
                     <h2 style={styles.cardTitle}><Phone size={22} style={{ marginRight: '10px' }} />Make a Single Call</h2>
-                    <form onSubmit={handleSingleCall} style={{display: 'flex', flexDirection: 'column', gap: '1rem'}}>
+                    <form onSubmit={handleSingleCall} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                         <div style={styles.formGroup}>
                             <label htmlFor="userName" style={styles.label}>Name (Optional)</label>
                             <input id="userName" type="text" style={styles.input} placeholder="e.g., Donald Trump" value={userName} onChange={(e) => setUserName(e.target.value)} />
                         </div>
-                         <div style={styles.formGroup}>
+                        <div style={styles.formGroup}>
                             <label htmlFor="phoneNumber" style={styles.label}>Phone Number*</label>
-                            <div style={styles.inputGroup}><span style={styles.inputPrefix}>+972</span><input id="phoneNumber" type="tel" style={{...styles.input, ...styles.inputWithPrefix}} placeholder="50 123 4567" value={phoneNumber} onChange={(e) => setPhoneNumber(e.target.value.replace(/\D/g, '').slice(0, 10))} required /></div>
+                            <div style={styles.inputGroup}><span style={styles.inputPrefix}>+972</span><input id="phoneNumber" type="tel" style={{ ...styles.input, ...styles.inputWithPrefix }} placeholder="50 123 4567" value={phoneNumber} onChange={(e) => setPhoneNumber(e.target.value.replace(/\D/g, '').slice(0, 10))} required /></div>
                         </div>
                         <div style={styles.formGroup}>
-                             <label htmlFor="prompt" style={styles.label}>Prompt (Optional)</label>
-                             <textarea id="prompt" style={styles.textarea} placeholder="Enter a custom prompt for the call..." value={prompt} onChange={(e) => setPrompt(e.target.value)} />
+                            <label htmlFor="prompt" style={styles.label}>Prompt (Optional)</label>
+                            <textarea id="prompt" style={styles.textarea} placeholder="Enter a custom prompt for the call..." value={prompt} onChange={(e) => setPrompt(e.target.value)} />
                         </div>
-                        <button type="submit" disabled={isCalling || !phoneNumber} style={{...styles.buttonPrimary, ...( (isCalling || !phoneNumber) ? styles.buttonDisabled : {})}}>
+                        <button type="submit" disabled={isCalling || !phoneNumber} style={{ ...styles.buttonPrimary, ...((isCalling || !phoneNumber) ? styles.buttonDisabled : {}) }}>
                             {isCalling ? <Loader2 size={20} style={styles.spinner} /> : 'Initiate Call'}
                         </button>
                     </form>
                     {callStatus && <StatusMessage type={callStatus.type} message={callStatus.message} />}
                 </div>
                 <div style={styles.card}>
-                    <div style={styles.bulkHeader}><h2 style={styles.cardTitle}><Upload size={22} style={{ marginRight: '10px' }}/>Bulk Calling from File</h2>{file && (<button onClick={handleReset} style={styles.resetButton}><RefreshCcw size={14} /> Reset</button>)}</div>
+                    <div style={styles.bulkHeader}><h2 style={styles.cardTitle}><Upload size={22} style={{ marginRight: '10px' }} />Bulk Calling from File</h2>{file && (<button onClick={handleReset} style={styles.resetButton}><RefreshCcw size={14} /> Reset</button>)}</div>
                     {!fileData && (
-                        <div style={isParsing ? {...styles.dropzone, ...styles.dropzoneParsing} : styles.dropzone} onClick={() => fileInputRef.current.click()} onDragOver={(e) => e.preventDefault()} onDrop={(e) => { e.preventDefault(); if (e.dataTransfer.files && e.dataTransfer.files[0]) { handleFileSelect(e.dataTransfer.files[0]); }}}>
+                        <div style={isParsing ? { ...styles.dropzone, ...styles.dropzoneParsing } : styles.dropzone} onClick={() => fileInputRef.current.click()} onDragOver={(e) => e.preventDefault()} onDrop={(e) => { e.preventDefault(); if (e.dataTransfer.files && e.dataTransfer.files[0]) { handleFileSelect(e.dataTransfer.files[0]); } }}>
                             <input type="file" ref={fileInputRef} onChange={(e) => handleFileSelect(e.target.files[0])} accept=".csv,.xls,.xlsx" style={{ display: 'none' }} />
-                            {isParsing ? (<><Loader2 size={32} style={styles.spinner} color={brandColors.accentBlue}/><p style={styles.dropzoneText}>Parsing file...</p></>) : (<><Upload size={32} color={brandColors.accentBlue}/><p style={styles.dropzoneText}><strong>Drag & drop a file here</strong> or click to select</p><p style={styles.dropzoneSubtext}>Supports CSV, XLS, XLSX up to 10MB</p></>)}
+                            {isParsing ? (<><Loader2 size={32} style={styles.spinner} color={brandColors.accentBlue} /><p style={styles.dropzoneText}>Parsing file...</p></>) : (<><Upload size={32} color={brandColors.accentBlue} /><p style={styles.dropzoneText}><strong>Drag & drop a file here</strong> or click to select</p><p style={styles.dropzoneSubtext}>Supports CSV, XLS, XLSX up to 10MB</p></>)}
                         </div>
                     )}
                     {error && <StatusMessage type="error" message={error} />}
                     {memoizedPreview}
                     {fileData && !uploadStatus && (
-                        <button onClick={handleBulkCall} disabled={isSending} style={{...styles.buttonPrimary, ...styles.sendButton, ...((isSending) ? styles.buttonDisabled : {})}}>
+                        <button onClick={handleBulkCall} disabled={isSending} style={{ ...styles.buttonPrimary, ...styles.sendButton, ...((isSending) ? styles.buttonDisabled : {}) }}>
                             {isSending ? <Loader2 size={20} style={styles.spinner} /> : <Send size={18} />}
                             {isSending ? 'Sending...' : `Send ${fileData.data.length} Records`}
                         </button>
