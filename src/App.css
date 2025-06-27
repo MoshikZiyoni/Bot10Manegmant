@@ -611,37 +611,13 @@ body {
 
 
 
-    @media (max-width: 768px) {
-.logo-image {
-        max-height: 90px;
-      }
-      .app-header {
-    flex-direction: column;
-    align-items: flex-start;
-    padding: 0.5rem;
-  }
-
-  .header-left {
-    width: 100%;
-    justify-content: flex-start;
-  }
-
-  .header-title {
-    font-size: 1rem;
-    max-width: 60vw;
-  }
-
+  @media only screen and (max-width: 768px) {
   .nav-toggle {
     display: flex;
-    position: absolute;
-    top: 18px;
-    right: 16px;
   }
-
   nav {
     width: 100%;
   }
-
   .nav-links {
     flex-direction: column;
     background: #223046;
@@ -654,19 +630,37 @@ body {
     box-shadow: 0 2px 8px rgba(0,0,0,0.1);
     z-index: 1100;
   }
-
   nav.nav-open .nav-links {
     display: flex;
   }
-
-  .user-nav {
-    width: 100%;
-    margin: 0.5rem 0 0 0;
-    justify-content: flex-end;
+  .stats-cards {
+    display: block !important; 
+    grid-template-columns: none !important;
+    
   }
-
+  .stat-card {
+    padding: 1rem;
+  }
+  .stat-icon {
+    width: 30px;
+    height: 30px;
+  }
+  .stat-content {
+    font-size: 0.875rem;
+  }
+  .header-left {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+  .logo-image {
+  max-height: 40px;
+  margin-left: 0;
+  margin-right: auto;
+  display: block;
 }
 
+}
 
 @tailwind base;
 @tailwind components;

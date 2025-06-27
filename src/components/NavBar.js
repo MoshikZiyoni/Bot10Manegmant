@@ -4,6 +4,7 @@ import { useAuth0 } from '@auth0/auth0-react';
 import LogoutButton from '../auth/Logout';
 import updatedLogo from '../updated_logo.png';
 import UserQuota from './UserQuota';
+import { Menu, X } from 'lucide-react';
 
 const NavBar = () => {
   const { user } = useAuth0();
@@ -22,9 +23,7 @@ const NavBar = () => {
         aria-label="Toggle navigation"
         onClick={() => setMenuOpen(!menuOpen)}
       >
-        <span className="hamburger"></span>
-        <span className="hamburger"></span>
-        <span className="hamburger"></span>
+        {menuOpen ? <X size={24} /> : <Menu size={24} />}
       </button>
       <nav className={menuOpen ? 'nav-open' : ''}>
         <ul className="nav-links">

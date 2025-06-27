@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { PhoneIncoming, PhoneOutgoing, Clock, Calendar, ArrowLeft } from 'lucide-react';
 import axios from 'axios';
+import '../CallDetail.css'; // Import the stylesheet
 
 function CallDetail() {
   const { id } = useParams();
@@ -10,7 +11,9 @@ function CallDetail() {
   const [error, setError] = useState(null);
   const baseURL = process.env.REACT_APP_API_URL || '';
 
-  useEffect(() => {
+
+
+    useEffect(() => {
     const fetchCallDetails = async () => {
       try {
         const response = await axios.get(`${baseURL}/api/calls/${id}/`);
@@ -26,6 +29,7 @@ function CallDetail() {
     fetchCallDetails();
   }, [id]);
 
+
   if (loading) {
     return <div className="loading">Loading call details...</div>;
   }
@@ -38,7 +42,6 @@ function CallDetail() {
     return <div className="not-found">Call not found</div>;
   }
 
-  // Format duration in minutes and seconds
   const formatDuration = (seconds) => {
     const minutes = Math.floor(seconds / 60);
     const remainingSeconds = Math.floor(seconds % 60);
@@ -46,7 +49,7 @@ function CallDetail() {
   };
 
   return (
-    <div className="call-detail">
+    <div className="call-detail-container">
       <div className="page-header">
         <Link to="/calls" className="back-link">
           <ArrowLeft size={16} />
@@ -114,7 +117,6 @@ function CallDetail() {
 
       <div className="conversation-container">
         <h3>Conversation</h3>
-
         {call.conversation && call.conversation.length > 0 ? (
           <div className="conversation-timeline">
             {call.conversation.map((turn, index) => (
@@ -123,7 +125,7 @@ function CallDetail() {
                 className={`conversation-turn ${turn.is_ai ? 'ai-turn' : 'user-turn'}`}
               >
                 <div className="turn-avatar">
-                  <strong>{turn.is_ai ? 'AI:' : 'User:'}</strong>
+                  <strong>{turn.is_ai ? 'AI' : 'User'}</strong>
                 </div>
                 <div className="turn-content">
                   <p>{turn.text}</p>
