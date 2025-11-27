@@ -123,7 +123,11 @@ const ContactForm = () => {
             animation: 'float 3s ease-in-out infinite'
           }}
         />
+      <p>
+        Email: <a href="mailto:bot10.info@gmail.com">bot10.info@gmail.com</a>
+      </p>
       </div>
+      
     </div>
   );
 };

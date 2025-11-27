@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 // The user's code uses Link, but in this environment, a standard <a> tag is used for navigation.
 // import { Link } from 'react-router-dom';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
-import { Phone, PhoneIncoming, PhoneOutgoing, Clock, BarChart2, CheckCircle, XCircle, Loader2 } from 'lucide-react';
+import { Phone, PhoneIncoming, PhoneOutgoing, Clock, BarChart2, Loader2 } from 'lucide-react';
 import axios from 'axios';
 import { Link } from 'react-router-dom';
 

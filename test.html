@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+</head>
+<body>
+    <div id="myLandbot" style="width: 100%; height: 1200px; position: relative; display: flex; align-items: center; justify-content: center;">
+    
+    <div id="landbot-loader">
+        <style>
+            .loader {
+                border: 8px solid #f3f3f3; /* Light grey */
+                border-top: 8px solid #3498db; /* Blue */
+                border-radius: 50%;
+                width: 60px;
+                height: 60px;
+                animation: spin 1.5s linear infinite;
+            }
+            @keyframes spin {
+                0% { transform: rotate(0deg); }
+                100% { transform: rotate(360deg); }
+            }
+        </style>
+        <div class="loader"></div>
+        <p style="margin-top: 15px; font-family: sans-serif;">טוען את הסקר...</p>
+    </div>
+
+</div>
+
+
+<script type="module">
+    // פונקציה שתפעיל את כל תהליך הטעינה של הבוט
+    function loadLandbot() {
+        // שלב א': יוצרים את תג הסקריפט של "המנוע" של Landbot באופן דינמי
+        const landbotEngineScript = document.createElement('script');
+        landbotEngineScript.type = 'module';
+        landbotEngineScript.src = 'https://cdn.landbot.io/landbot-3/landbot-3.0.0.mjs';
+        landbotEngineScript.setAttribute('SameSite', 'None; Secure');
+
+        // שלב ב': מה יקרה אחרי שהסקריפט יסיים להיטען
+        landbotEngineScript.onload = function() {
+            // מסתירים את אנימציית הטעינה
+            document.getElementById('landbot-loader').style.display = 'none';
+
+            // פונקציה לחילוץ פרמטרים מה-URL
+            function getUrlParams() {
+                const params = new URLSearchParams(window.location.search);
+                const utmParams = {};
+                const utmKeys = ['utm_source', 'utm_medium', 'utm_campaign', 'utm_term', 'utm_content'];
+                utmKeys.forEach(key => {
+                    const value = params.get(key);
+                    if (value) {
+                        utmParams[key] = value;
+                    }
+                });
+                return utmParams;
+            }
+            
+            const customData = getUrlParams();
+            
+            // יצירת ה-Landbot עם הפרמטרים
+            var myLandbot = new Landbot.Container({
+                container: '#myLandbot',
+                configUrl: 'https://storage.googleapis.com/landbot.pro/v3/H-3109705-VVJH39ACSMG5SIVR/index.json',
+                customData: customData
+            });
+        };
+
+        // שלב ג': מוסיפים את הסקריפט לדף כדי להתחיל את ההורדה שלו
+        document.body.appendChild(landbotEngineScript);
+    }
+
+    // "מאזינים" לאירוע שהדף הראשוני נטען (בלי תמונות וסקריפטים חיצוניים)
+    // ברגע שהדף מוכן, אנחנו מפעילים את פונקציית הטעינה של הבוט
+    document.addEventListener('DOMContentLoaded', loadLandbot);
+</script>
+</body>
+</html>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<script SameSite="None; Secure" type="module" src="https://cdn.landbot.io/landbot-3/landbot-3.0.0.mjs"></script>
+<div id="myLandbot" style="width: 100%; height: 1200px"></div>
+<script type="module">
+  // פונקציה לחילוץ פרמטרים מה-URL
+  function getUrlParams() {
+    const params = new URLSearchParams(window.location.search);
+    const utmParams = {};
+    
+    // חילוץ פרמטרי UTM
+    const utmKeys = ['utm_source', 'utm_medium', 'utm_campaign', 'utm_term', 'utm_content'];
+    
+    utmKeys.forEach(key => {
+      const value = params.get(key);
+      if (value) {
+        utmParams[key] = value;
+      }
+    });
+    
+    return utmParams;
+  }
+  
+  // קבלת פרמטרי ה-UTM מה-URL
+  const customData = getUrlParams();
+  
+  // יצירת ה-Landbot עם הפרמטרים
+  var myLandbot = new Landbot.Container({
+    container: '#myLandbot',
+    configUrl: 'https://storage.googleapis.com/landbot.online/v3/H-3024798-BYK5PFDOFR78MXSA/index.json',
+    customData: customData  // העברת הפרמטרים ל-Landbot
+  });
+  
+  // הדפסה לקונסול לבדיקה
+  console.log('UTM Parameters:', customData);
+</script>
+
+
+
+
+
+
+
+
+###asaf doani
+
+<script SameSite="None; Secure"  type="module" src="https://cdn.landbot.io/landbot-3/landbot-3.0.0.mjs"></script>
+<div id="myLandbot" style="width: 100%; height: 100vh"></div>
+<script type="module">
+  var myLandbot = new Landbot.Container({
+    container: '#myLandbot',
+    configUrl: 'https://storage.googleapis.com/landbot.pro/v3/H-3109705-VVJH39ACSMG5SIVR/index.json',
+  });
+</script>

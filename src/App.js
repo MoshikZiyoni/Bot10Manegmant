@@ -1,8 +1,5 @@
-import { BrowserRouter as Router, Routes, Route, Navigate, Link } from 'react-router-dom';
-// import Dashboard from './components/Dashboard';
-// import CallList from './components/CallList';
-// import CallDetail from './components/CallDetail';
-// import NewCall from './components/NewCall';
+import { BrowserRouter as Router, Routes, Route, Link } from 'react-router-dom';
+
 import Login from './auth/Login';
 import ProtectedRoute from './auth/protected-route';
 import NavBar from './components/NavBar';

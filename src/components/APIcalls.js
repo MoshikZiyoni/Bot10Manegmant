@@ -27,10 +27,10 @@ export const callsApi = {
   },
   
   // Get single call details
-  getCallDetails: async (callId) => {
-    const response = await api.get(`/api/calls/${callId}/`);
-    return response.data;
-  },
+  // getCallDetails: async (callId) => {
+  //   const response = await api.get(`/api/calls/${callId}/`);
+  //   return response.data;
+  // },
   
   // Get call statistics
   getCallStats: async () => {

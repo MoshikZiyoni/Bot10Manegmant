@@ -1,7 +1,7 @@
-import React, { useState, useEffect, useRef } from 'react';
+import  { useState, useEffect, useRef } from 'react';
 // The user's code uses Link, but in this environment, a standard <a> tag is used for navigation.
 // import { Link } from 'react-router-dom';
-import { PhoneIncoming, PhoneOutgoing, Search, Filter, Download, ChevronDown, Loader2, X } from 'lucide-react';
+import { PhoneIncoming, PhoneOutgoing, Search, Filter, Download, ChevronDown, Loader2, ArrowUp, ArrowDown } from 'lucide-react'; // Import ArrowUp and ArrowDown
 import axios from 'axios';
 import { Link } from 'react-router-dom';
 
@@ -9,7 +9,6 @@ const CallList = () => {
     const [calls, setCalls] = useState([]);
     const [loading, setLoading] = useState(true);
     const [page, setPage] = useState(1);
-    const searchTimeout = useRef();
     const [totalPages, setTotalPages] = useState(1);
     const [totalResults, setTotalResults] = useState(0);
     const [customDaysInput, setCustomDaysInput] = useState('');
@@ -24,6 +23,8 @@ const CallList = () => {
         created_within_days: ''
     });
     const [showFilters, setShowFilters] = useState(false);
+    // New state for sorting 'created_at'
+    const [sortOrder, setSortOrder] = useState('desc'); // 'asc', 'desc', or '' for no sort
 
     // --- Brand Colors ---
     const brandColors = {
@@ -35,20 +36,17 @@ const CallList = () => {
 
     useEffect(() => {
         fetchCalls();
-    }, [page, filters.direction, filters.status, filters.has_offer, filters.created_within_days]);
+    }, [page, filters.direction, filters.status, filters.has_offer, filters.created_within_days, sortOrder]); // Add sortOrder to dependencies
     
     useEffect(() => {
-        // Debounce search input
-        clearTimeout(searchTimeout.current);
-        searchTimeout.current = setTimeout(() => {
-            if (page === 1) {
-                 fetchCalls();
-            } else {
-                 setPage(1); // Setting page will trigger fetchCalls
+        const timeoutId = setTimeout(() => {
+            if (Object.values(filters).some(value => value !== '')) {
+                fetchCalls();
             }
-        }, 400);
-    }, [filters.search]);
-
+        }, 500);
+        return () => clearTimeout(timeoutId);
+    }, [filters]);
+    
 
     const fetchCalls = async () => {
         setLoading(true);
@@ -60,6 +58,10 @@ const CallList = () => {
             if (filters.has_offer) params.append('has_offer', filters.has_offer);
             if (filters.created_within_days && filters.created_within_days !== 'custom') {
                  params.append('created_within_days', filters.created_within_days);
+            }
+            // Add sorting parameter
+            if (sortOrder) {
+                params.append('ordering', sortOrder === 'asc' ? 'created_at' : '-created_at');
             }
             
             const response = await axios.get(`${baseURL}/api/calls/?${params.toString()}`);
@@ -103,6 +105,16 @@ const CallList = () => {
         }, 1000);
     };
 
+    const handleSortToggle = () => {
+        // Toggle sort order: 'desc' -> 'asc' -> '' (no sort) -> 'desc'
+        setSortOrder(prevSortOrder => {
+            if (prevSortOrder === 'desc') return 'asc';
+            if (prevSortOrder === 'asc') return '';
+            return 'desc';
+        });
+        setPage(1); // Reset to page 1 when sorting changes
+    };
+
     const getExportUrl = () => {
         const params = new URLSearchParams();
         if (filters.direction) params.append('direction', filters.direction);
@@ -111,6 +123,9 @@ const CallList = () => {
         if (filters.has_offer) params.append('has_offer', filters.has_offer);
         if (filters.created_within_days && filters.created_within_days !== 'custom') {
             params.append('created_within_days', filters.created_within_days);
+        }
+        if (sortOrder) {
+            params.append('ordering', sortOrder === 'asc' ? 'created_at' : '-created_at');
         }
         return `${baseURL}/api/export-calls-excel/?${params.toString()}`;
     };
@@ -214,6 +229,7 @@ const CallList = () => {
         loader: { textAlign: 'center', padding: '4rem', fontSize: '1.2rem', color: brandColors.accentBlue, display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '1rem' },
         spinner: { animation: 'spin 1s linear infinite' },
         noResults: { textAlign: 'center', padding: '4rem', fontSize: '1.2rem', color: brandColors.accentBlue },
+        sortArrow: { cursor: 'pointer', marginLeft: '5px', display: 'inline-flex', alignItems: 'center', verticalAlign: 'middle' },
     };
     
     const getStatusStyle = (status) => {
@@ -224,6 +240,7 @@ const CallList = () => {
             case 'in_progress': return {...base, color: '#2980b9', backgroundColor: '#eaf2f8'};
             case 'canceled': return {...base, color: '#f39c12', backgroundColor: '#fef5e7'};
             case 'busy': return {...base, color: '#8e44ad', backgroundColor: '#f4ecf7'};
+            case 'voicemail_detected': return {...base, color: '#f1c40f', backgroundColor: '#fef9e7'};
             default: return {...base, color: '#7f8c8d', backgroundColor: '#f4f6f7'};
         }
     };
@@ -300,7 +317,13 @@ const CallList = () => {
                         <thead><tr>
                             <th style={styles.tableTh}>Phone Number</th><th style={styles.tableTh}>Direction</th>
                             <th style={styles.tableTh}>Status</th><th style={styles.tableTh}>Duration</th>
-                            <th style={styles.tableTh}>Created At</th><th style={styles.tableTh}>Actions</th>
+                            <th style={styles.tableTh}>
+                                Created At
+                                <span style={styles.sortArrow} onClick={handleSortToggle}>
+                                    {sortOrder === 'desc' ? <ArrowDown size={14} /> : sortOrder === 'asc' ? <ArrowUp size={14} /> : <ChevronDown size={14} />}
+                                </span>
+                            </th>
+                            <th style={styles.tableTh}>Actions</th>
                         </tr></thead>
                         <tbody>{calls.map(call => (
                             <tr key={call.id} style={styles.tableRow}>

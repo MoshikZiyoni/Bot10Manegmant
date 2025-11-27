@@ -25,175 +25,278 @@
 .page-header {
   display: flex;
   align-items: center;
-  margin-bottom: 2rem;
+  justify-content: space-between;
+  margin-bottom: 25px;
+  border-bottom: 1px solid #eee;
+  padding-bottom: 15px;
 }
 
 .page-header h2 {
-  font-size: 1.75rem;
-  font-weight: 600;
   margin: 0;
-  margin-left: auto;
+  font-size: 1.8em;
+  color: #007bff;
 }
 
 .back-link {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
-  color: var(--text-secondary);
   text-decoration: none;
-  font-weight: 500;
-  transition: color 0.2s;
+  color: #6c757d;
+  font-size: 0.95em;
+  transition: color 0.2s ease-in-out;
 }
 
 .back-link:hover {
-  color: var(--primary-color);
+  color: #0056b3;
 }
 
-.call-info-card, .call-summary-container, .conversation-container {
-  background-color: var(--card-background);
+.back-link svg {
+  margin-right: 5px;
+}
+
+/* Call Info Card */
+.call-info-card {
+  background-color: #f8f9fa;
+  border: 1px solid #e9ecef;
   border-radius: 8px;
-  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
-  padding: 1.5rem;
-  margin-bottom: 2rem;
+  padding: 20px;
+  margin-bottom: 25px;
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.05);
 }
 
 .call-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  border-bottom: 1px solid var(--border-color);
-  padding-bottom: 1rem;
-  margin-bottom: 1rem;
+  margin-bottom: 15px;
+  padding-bottom: 15px;
+  border-bottom: 1px dashed #dee2e6;
 }
 
 .call-direction {
   display: flex;
   align-items: center;
-  gap: 0.75rem;
-  font-weight: 600;
-  font-size: 1.1rem;
+  font-weight: bold;
+  font-size: 1.1em;
 }
 
-.icon-incoming {
-  color: var(--incoming-color);
+.call-direction .icon-incoming {
+  color: #28a745; /* Green for incoming */
+  margin-right: 8px;
 }
 
-.icon-outgoing {
-  color: var(--outgoing-color);
+.call-direction .icon-outgoing {
+  color: #dc3545; /* Red for outgoing */
+  margin-right: 8px;
 }
 
 .call-status {
-  padding: 0.25rem 0.75rem;
-  border-radius: 9999px;
-  font-weight: 600;
-  font-size: 0.8rem;
+  padding: 5px 12px;
+  border-radius: 20px;
+  font-size: 0.85em;
+  font-weight: bold;
   text-transform: capitalize;
-  background-color: #e2e8f0;
-  color: #4a5568;
+  color: #fff;
 }
 
-.status-completed {
-  background-color: #c6f6d5;
-  color: #2f855a;
+.status-answered {
+  background-color: #28a745; /* Green */
 }
+
+.status-busy {
+  background-color: #ffc107; /* Yellow */
+}
+
+.status-no_answer {
+  background-color: #6c757d; /* Gray */
+}
+
 .status-failed {
-    background-color: #fed7d7;
-    color: #c53030;
+  background-color: #dc3545; /* Red */
 }
+
+/* Add other statuses as needed */
 
 .call-meta {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-  gap: 1rem;
+  gap: 15px;
 }
 
 .meta-item {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
-  color: var(--text-secondary);
+  padding: 5px 0;
 }
 
-.meta-item .meta-label {
-  font-weight: 500;
+.meta-item svg {
+  margin-right: 8px;
+  color: #007bff;
 }
 
-.meta-item .meta-value {
-    font-weight: 600;
-    color: var(--text-primary);
-}
-
-
-h3 {
-  font-size: 1.25rem;
+.meta-label {
   font-weight: 600;
+  color: #555;
+  margin-right: 5px;
+}
+
+.meta-value {
+  color: #333;
+}
+
+/* Summary Section */
+.call-summary-container {
+  background-color: #f0f8ff; /* Light blue background for summary */
+  border: 1px solid #d0e8f8;
+  border-left: 5px solid #007bff; /* Blue accent border */
+  border-radius: 8px;
+  padding: 20px;
+  margin-bottom: 25px;
+}
+
+.call-summary-container h3 {
   margin-top: 0;
-  margin-bottom: 1rem;
-  color: var(--text-primary);
+  color: #007bff;
+  font-size: 1.4em;
+  margin-bottom: 10px;
 }
 
 .call-summary-content p {
   line-height: 1.6;
-  color: var(--text-secondary);
-  margin: 0;
+  color: #444;
+  font-size: 1.05em;
+  text-align: right; /* Ensure Hebrew summary aligns right */
 }
+
+.no-summary {
+  font-style: italic;
+  color: #888;
+}
+
+/* Conversation Section */
+.conversation-container {
+  margin-top: 30px;
+}
+
+.conversation-container h3 {
+  font-size: 1.4em;
+  color: #007bff;
+  margin-bottom: 20px;
+  text-align: center;
+  position: relative;
+}
+
+.conversation-container h3::after {
+  content: '';
+  display: block;
+  width: 50px;
+  height: 3px;
+  background-color: #007bff;
+  margin: 10px auto 0;
+  border-radius: 2px;
+}
+
 
 .conversation-timeline {
-  display: flex;
-  flex-direction: column;
-  gap: 1.5rem;
+  max-height: 500px; /* Limit height for scrolling */
+  overflow-y: auto; /* Add scroll if content overflows */
+  padding-right: 15px; /* Space for scrollbar */
+  padding-left: 5px;
 }
 
+/* Individual conversation turn */
 .conversation-turn {
   display: flex;
-  gap: 1rem;
-  align-items: flex-start;
+  align-items: flex-start; /* Align content to the top */
+  margin-bottom: 20px;
+  max-width: 90%; /* Keep bubbles from being too wide */
 }
 
-.turn-avatar {
-  width: 40px;
-  height: 40px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-weight: 600;
-  color: var(--text-primary);
-  flex-shrink: 0;
-}
-
-.ai-turn .turn-avatar {
-  background-color: var(--ai-bubble-bg);
+/* Styles for User turns (right-aligned, different color) */
+.user-turn {
+  justify-content: flex-end; /* Push user turn to the right */
+  margin-left: auto; /* Push to right, combined with justify-content */
 }
 
 .user-turn .turn-avatar {
-  background-color: var(--user-bubble-bg);
+  order: 2; /* Move avatar to the right of the bubble for user */
+  margin-right: 0;
+  margin-left: 10px;
 }
 
-.turn-content {
-  background-color: #f7fafc;
-  padding: 1rem;
-  border-radius: 8px;
-  flex-grow: 1;
-}
-.turn-content p {
-    margin: 0;
-    line-height: 1.5;
-    color: var(--text-secondary);
+.user-turn .turn-content-bubble {
+  background-color: #dcf8c6; /* Light green for user messages (WhatsApp-like) */
+  border-bottom-right-radius: 2px; /* Slight corner adjustment for bubble effect */
+  text-align: right; /* Align text within the user bubble to the right */
 }
 
-.ai-turn .turn-content {
-    background-color: var(--ai-bubble-bg);
-    border-top-left-radius: 0;
+/* Styles for AI turns (left-aligned, different color) */
+.ai-turn {
+  justify-content: flex-start; /* AI turn to the left */
+  margin-right: auto; /* Push to left */
 }
-.user-turn .turn-content {
-    background-color: var(--user-bubble-bg);
-    border-top-right-radius: 0;
+
+.ai-turn .turn-avatar {
+  order: 1; /* Keep avatar on the left for AI */
+  margin-right: 10px;
+  margin-left: 0;
 }
-.user-turn {
-    flex-direction: row-reverse;
+
+.ai-turn .turn-content-bubble {
+  background-color: #e2e2e2; /* Light gray for AI messages */
+  border-bottom-left-radius: 2px; /* Slight corner adjustment for bubble effect */
+  text-align: right; /* Ensure text within AI bubble also aligns right for Hebrew */
 }
-.user-turn .turn-content {
-    border-top-right-radius: 0;
-    border-top-left-radius: 8px;
+
+.turn-avatar {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-right: 10px;
+  min-width: 60px; /* Give avatar space */
+  text-align: center;
+}
+
+.turn-avatar svg {
+  margin-bottom: 5px;
+  border-radius: 50%;
+  padding: 5px;
+  background-color: #fff; /* White background for icons */
+  box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+}
+
+.turn-avatar strong {
+  font-size: 0.85em;
+  color: #555;
+}
+
+.turn-content-bubble {
+  padding: 12px 18px;
+  border-radius: 18px; /* Rounded corners for bubble effect */
+  max-width: 75%; /* Adjust max width as needed */
+  position: relative;
+  word-wrap: break-word; /* Essential for long words */
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1); /* Subtle shadow for depth */
+}
+
+.turn-content-bubble p {
+  margin: 0;
+  line-height: 1.5;
+  font-size: 1em;
+  color: #333;
+}
+
+.no-conversation {
+  text-align: center;
+  font-style: italic;
+  color: #888;
+  padding: 20px;
+}
+
+/* Add this to your CallDetail.css */
+.summary-icons {
+  display: flex;
+  align-items: center; /* Align icons vertically */
+  margin-right: 10px; /* Space between icons and summary text */
+  /* Or margin-left depending on exact desired layout */
 }

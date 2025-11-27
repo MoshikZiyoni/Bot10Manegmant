@@ -1,5 +1,5 @@
-import React, { useState, useRef, useMemo } from 'react';
-import { Phone, Upload, FileText, Eye, EyeOff, Download, RefreshCcw, Loader2, CheckCircle, AlertTriangle, XCircle, ChevronLeft, ChevronRight, Send, User, MessageSquare } from 'lucide-react';
+import { useState, useRef, useMemo } from 'react';
+import { Phone, Upload, FileText, Eye, EyeOff, RefreshCcw, Loader2, CheckCircle, AlertTriangle, XCircle, ChevronLeft, ChevronRight, Send, User, PhoneOutgoing, UserSquareIcon, ReceiptText } from 'lucide-react';
 import axios from 'axios';
 import { useAuth0 } from '@auth0/auth0-react';
 // Imports for papaparse and xlsx are changed to use a CDN to resolve the bundling error.
@@ -10,11 +10,12 @@ import { Link } from 'react-router-dom';
 // To use this component, you'll need to install the following libraries:
 // npm install axios lucide-react
 
-const App = () => {
+const NewCall = () => {
 
     // --- STATE MANAGEMENT ---
     const [userName, setUserName] = useState('');
     const [prompt, setPrompt] = useState('');
+    const [gender, setGender] = useState('');
     const [phoneNumber, setPhoneNumber] = useState('');
     const [isCalling, setIsCalling] = useState(false);
     const [callStatus, setCallStatus] = useState(null); // { type: 'success'/'error', message: '...' }
@@ -27,7 +28,8 @@ const App = () => {
     const [uploadStatus, setUploadStatus] = useState(null);
     const [error, setError] = useState(null);
     const [quotaModalOpen, setQuotaModalOpen] = useState(false);
-
+    const [bulkGender, setBulkGender] = useState('');
+    const [bulkPrompt, setBulkPrompt] = useState('');
     const [showPreview, setShowPreview] = useState(true);
     const [currentPage, setCurrentPage] = useState(1);
     const fileInputRef = useRef(null);
@@ -49,39 +51,45 @@ const App = () => {
      * Handles the submission of the single call form.
      */
     const handleSingleCall = async (e) => {
-    e.preventDefault();
-    if (phoneNumber.length < 8 || phoneNumber.length > 10) {
-        setCallStatus({ type: 'error', message: 'Phone number must be between 8 and 10 digits.' });
-        return;
-    }
-    setIsCalling(true);
-    setCallStatus(null);
-    try {
-        const fullNumber = `+972${phoneNumber}`;
-        const payload = {
-            phone_number: fullNumber,
-            user_name: userName || undefined,
-            email: userEmail,
-            prompt: prompt || undefined,
-        };
-        const response = await axios.post(`${baseURL}/outbound-call/`, payload);
-        setCallStatus({ type: 'success', message: `Call initiated successfully! SID: ${response.data.call_sid}` });
-        setPhoneNumber('');
-        setUserName('');
-        setPrompt('');
-    } catch (err) {
-        const errorMessage = err.response?.data?.message || err.response?.data?.error || 'Failed to initiate call.';
-        if (
-            errorMessage === "Quota exceeded or expired. Please contact support."
-        ) {
-            setQuotaModalOpen(true);
-        } else {
-            setCallStatus({ type: 'error', message: errorMessage });
+        e.preventDefault();
+        if (phoneNumber.length < 8 || phoneNumber.length > 10) {
+            setCallStatus({ type: 'error', message: 'Phone number must be between 8 and 10 digits.' });
+            return;
         }
-    } finally {
-        setIsCalling(false);
-    }
-};
+        setIsCalling(true);
+        setCallStatus(null);
+        try {
+            const fullNumber = `+972${phoneNumber}`;
+            const payload = {
+                phone_number: fullNumber,
+                user_name: userName || undefined,
+                email: userEmail,
+                prompt: prompt || undefined,
+                gender: gender || undefined,
+            };
+            const response = await axios.post(`${baseURL}/outbound-call/`, payload);
+            setCallStatus({ type: 'success', message: `Call initiated successfully! SID: ${response.data.call_sid}` });
+            setPhoneNumber('');
+            setUserName('');
+            setPrompt('');
+            setGender('');
+        } catch (err) {
+            const errorMessage = err.response?.data?.message || err.response?.data?.error || 'Failed to initiate call.';
+            if (
+                errorMessage === "Quota exceeded or expired. Please contact support."
+            ) {
+                setQuotaModalOpen(true);
+            } else {
+                setCallStatus({ type: 'error', message: errorMessage });
+            }
+        } finally {
+            setIsCalling(false);
+        }
+    };
+
+    const handleGenderChange = (event) => {
+        setGender(event.target.value);
+    };
 
     /**
      * Handles file selection and initiates parsing.
@@ -100,6 +108,15 @@ const App = () => {
             return;
         }
         parseFile(selectedFile, fileExtension);
+        setTimeout(() => {
+        const footerElement = document.querySelector('.app-footer');
+        if (footerElement) {
+            footerElement.scrollIntoView({
+                behavior: 'smooth',
+                block: 'end' // Scrolls the element into view at the end of the scrollable area
+            });
+        }
+    }, 100);
     };
 
     /**
@@ -134,38 +151,40 @@ const App = () => {
     /**
      * Handles sending the bulk call data to the server.
      */
-   const handleBulkCall = async () => {
-    if (!file) {
-        setError("No file selected to send.");
-        return;
-    }
-    setIsSending(true);
-    setUploadStatus(null);
-    setError(null);
-    const formData = new FormData();
-    formData.append('file', file, 'email');
-    formData.append('email', user?.email);
-    try {
-        const response = await axios.post(`${baseURL}/bulk-calls/`, formData, {
-            headers: { 'Content-Type': 'multipart/form-data' },
-        });
-        setUploadStatus({
-            type: 'success',
-            message: `File uploaded! Job ID: ${response.data.job_id}. Total calls: ${response.data.total_calls}.`
-        });
-    } catch (err) {
-        const errorMessage = err.response?.data?.message || err.response?.data?.error || 'Failed to send file data.';
-        if (
-            errorMessage === "Quota exceeded or expired. Please contact support."
-        ) {
-            setQuotaModalOpen(true);
-        } else {
-            setUploadStatus({ type: 'error', message: errorMessage });
+    const handleBulkCall = async () => {
+        if (!file) {
+            setError("No file selected to send.");
+            return;
         }
-    } finally {
-        setIsSending(false);
-    }
-};
+        setIsSending(true);
+        setUploadStatus(null);
+        setError(null);
+        const formData = new FormData();
+        formData.append('file', file, 'email');
+        formData.append('email', user?.email);
+        if (bulkGender) formData.append('gender', bulkGender);
+        if (bulkPrompt) formData.append('prompt', bulkPrompt);
+        try {
+            const response = await axios.post(`${baseURL}/bulk-calls/`, formData, {
+                headers: { 'Content-Type': 'multipart/form-data' },
+            });
+            setUploadStatus({
+                type: 'success',
+                message: `File uploaded! Job ID: ${response.data.job_id}. Total calls: ${response.data.total_calls}.`
+            });
+        } catch (err) {
+            const errorMessage = err.response?.data?.message || err.response?.data?.error || 'Failed to send file data.';
+            if (
+                errorMessage === "Quota exceeded or expired. Please contact support."
+            ) {
+                setQuotaModalOpen(true);
+            } else {
+                setUploadStatus({ type: 'error', message: errorMessage });
+            }
+        } finally {
+            setIsSending(false);
+        }
+    };
     /**
      * Resets the file upload section state.
      */
@@ -177,6 +196,8 @@ const App = () => {
         setUploadStatus(null);
         setError(null);
         setCurrentPage(1);
+        setBulkPrompt('');
+        setBulkGender('');
         if (fileInputRef.current) {
             fileInputRef.current.value = '';
         }
@@ -299,60 +320,82 @@ const App = () => {
             <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
             <header style={styles.header}><h1 style={styles.title}>Outbound Call Center</h1><p style={styles.subtitle}>Initiate single calls or upload a file for bulk calling campaigns.</p></header>
             {quotaModalOpen && (
-    <div style={{
-        position: 'fixed',
-        top: 0, left: 0, right: 0, bottom: 0,
-        background: 'rgba(0,0,0,0.5)',
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        zIndex: 9999
-    }}>
-        <div style={{
-            background: '#fff',
-            borderRadius: '16px',
-            padding: '2.5rem 2rem',
-            boxShadow: '0 8px 32px rgba(0,0,0,0.18)',
-            maxWidth: '400px',
-            textAlign: 'center',
-            position: 'relative'
-        }}>
-            <XCircle size={28} color="#c0392b" style={{ marginBottom: '1rem' }} />
-            <h2 style={{ color: '#c0392b', marginBottom: '1rem' }}>Quota Exceeded</h2>
-            <p style={{ color: '#555', marginBottom: '1.5rem' }}>
-                Your call quota has expired or been exceeded.<br />
-                Please <Link to="/contact">contact support</Link> to continue using the service.
-            </p>
-            <button
-                onClick={() => setQuotaModalOpen(false)}
-                style={{
-                    background: '#f9bb2b',
-                    color: '#07455c',
-                    border: 'none',
-                    borderRadius: '8px',
-                    padding: '12px 24px',
-                    fontWeight: 'bold',
-                    cursor: 'pointer',
-                    fontSize: '1rem'
-                }}
-            >
-                Close
-            </button>
-        </div>
-    </div>
-)}
-             <main style={styles.main}>
+                <div style={{
+                    position: 'fixed',
+                    top: 0, left: 0, right: 0, bottom: 0,
+                    background: 'rgba(0,0,0,0.5)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    zIndex: 9999
+                }}>
+                    <div style={{
+                        background: '#fff',
+                        borderRadius: '16px',
+                        padding: '2.5rem 2rem',
+                        boxShadow: '0 8px 32px rgba(0,0,0,0.18)',
+                        maxWidth: '400px',
+                        textAlign: 'center',
+                        position: 'relative'
+                    }}>
+                        <XCircle size={28} color="#c0392b" style={{ marginBottom: '1rem' }} />
+                        <h2 style={{ color: '#c0392b', marginBottom: '1rem' }}>Quota Exceeded</h2>
+                        <p style={{ color: '#555', marginBottom: '1.5rem' }}>
+                            Your call quota has expired or been exceeded.<br />
+                            Please <Link to="/contact">contact support</Link> to continue using the service.
+                        </p>
+                        <button
+                            onClick={() => setQuotaModalOpen(false)}
+                            style={{
+                                background: '#f9bb2b',
+                                color: '#07455c',
+                                border: 'none',
+                                borderRadius: '8px',
+                                padding: '12px 24px',
+                                fontWeight: 'bold',
+                                cursor: 'pointer',
+                                fontSize: '1rem'
+                            }}
+                        >
+                            Close
+                        </button>
+                    </div>
+                </div>
+            )}
+            <main style={styles.main}>
                 <div style={styles.card}>
                     <h2 style={styles.cardTitle}><Phone size={22} style={{ marginRight: '10px' }} />Make a Single Call</h2>
                     <form onSubmit={handleSingleCall} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                         <div style={styles.formGroup}>
-                            <label htmlFor="userName" style={styles.label}>Name (Optional)</label>
-                            <input id="userName" type="text" style={styles.input} placeholder="e.g., Donald Trump" value={userName} onChange={(e) => setUserName(e.target.value)} />
-                        </div>
-                        <div style={styles.formGroup}>
-                            <label htmlFor="phoneNumber" style={styles.label}>Phone Number*</label>
+                            <label htmlFor="phoneNumber" style={styles.label}>
+                                <PhoneOutgoing size={18} style={{ marginRight: '8px' }} />
+                                Phone Number*
+                            </label>
                             <div style={styles.inputGroup}><span style={styles.inputPrefix}>+972</span><input id="phoneNumber" type="tel" style={{ ...styles.input, ...styles.inputWithPrefix }} placeholder="50 123 4567" value={phoneNumber} onChange={(e) => setPhoneNumber(e.target.value.replace(/\D/g, '').slice(0, 10))} required /></div>
                         </div>
                         <div style={styles.formGroup}>
-                            <label htmlFor="prompt" style={styles.label}>Prompt (Optional)</label>
+                            <label htmlFor="userName" style={styles.label}>
+                                <UserSquareIcon size={18} style={{ marginRight: '8px' }} />
+                                Name (Optional)</label>
+                            <input id="userName" type="text" style={styles.input} placeholder="e.g., Donald Trump" value={userName} onChange={(e) => setUserName(e.target.value)} />
+                        </div>
+                        <div style={styles.formGroup}>
+                            <label htmlFor="gender" style={{ ...styles.label, display: 'flex', alignItems: 'center' }}>
+                                <User size={18} style={{ marginRight: '8px' }} />
+                                Gender (Optional)
+                            </label>
+                            <select
+                                id="gender"
+                                style={styles.input}
+                                value={gender}
+                                onChange={handleGenderChange}
+                            >
+                                <option value="male">Male</option>
+                                <option value="female">Female</option>
+                            </select>
+                        </div>
+                        <div style={styles.formGroup}>
+                            <label htmlFor="prompt" style={styles.label}>
+                                <ReceiptText size={18} style={{ marginRight: '8px' }} />
+                                Prompt (Optional)</label>
                             <textarea id="prompt" style={styles.textarea} placeholder="Enter a custom prompt for the call..." value={prompt} onChange={(e) => setPrompt(e.target.value)} />
                         </div>
                         <button type="submit" disabled={isCalling || !phoneNumber} style={{ ...styles.buttonPrimary, ...((isCalling || !phoneNumber) ? styles.buttonDisabled : {}) }}>
@@ -363,6 +406,7 @@ const App = () => {
                 </div>
                 <div style={styles.card}>
                     <div style={styles.bulkHeader}><h2 style={styles.cardTitle}><Upload size={22} style={{ marginRight: '10px' }} />Bulk Calling from File</h2>{file && (<button onClick={handleReset} style={styles.resetButton}><RefreshCcw size={14} /> Reset</button>)}</div>
+
                     {!fileData && (
                         <div style={isParsing ? { ...styles.dropzone, ...styles.dropzoneParsing } : styles.dropzone} onClick={() => fileInputRef.current.click()} onDragOver={(e) => e.preventDefault()} onDrop={(e) => { e.preventDefault(); if (e.dataTransfer.files && e.dataTransfer.files[0]) { handleFileSelect(e.dataTransfer.files[0]); } }}>
                             <input type="file" ref={fileInputRef} onChange={(e) => handleFileSelect(e.target.files[0])} accept=".csv,.xls,.xlsx" style={{ display: 'none' }} />
@@ -371,6 +415,41 @@ const App = () => {
                     )}
                     {error && <StatusMessage type="error" message={error} />}
                     {memoizedPreview}
+                    {fileData && !uploadStatus && (
+                        <div style={{ display: 'flex', gap: '1.5rem', marginBottom: '1rem', flexWrap: 'wrap', flexDirection: 'column' }}>
+                            <div style={{ minWidth: 180 }}>
+                                <label htmlFor="bulkGender" style={styles.label}>
+                                    <User size={18} style={{ marginRight: '8px' }} />
+                                    Gender (Optional)
+                                </label>
+                                <select
+                                    id="bulkGender"
+                                    style={styles.input}
+                                    value={bulkGender}
+                                    onChange={e => setBulkGender(e.target.value)}
+                                >
+                                    <option value="">-- Select --</option>
+                                    <option value="male">Male</option>
+                                    <option value="female">Female</option>
+                                </select>
+                            </div>
+                            <div style={{ flex: 1, minWidth: 220 }}>
+                                <label htmlFor="bulkPrompt" style={styles.label}>
+                                    <ReceiptText size={18} style={{ marginRight: '8px' }} />
+                                    Prompt (Optional)
+                                </label>
+                                <div style={{ color: '#888', fontSize: '0.95em', marginBottom: 4 }}>
+                                    Enter a custom prompt for all calls...
+                                </div>
+                                <textarea
+                                    id="bulkPrompt"
+                                    style={styles.textarea}
+                                    value={bulkPrompt}
+                                    onChange={e => setBulkPrompt(e.target.value)}
+                                />
+                            </div>
+                        </div>
+                    )}
                     {fileData && !uploadStatus && (
                         <button onClick={handleBulkCall} disabled={isSending} style={{ ...styles.buttonPrimary, ...styles.sendButton, ...((isSending) ? styles.buttonDisabled : {}) }}>
                             {isSending ? <Loader2 size={20} style={styles.spinner} /> : <Send size={18} />}
@@ -384,4 +463,4 @@ const App = () => {
     );
 };
 
-export default App;
+export default NewCall;
