@@ -7,6 +7,8 @@ import './App.css';
 import { useAuth0 } from "@auth0/auth0-react";
 import { useEffect, lazy, Suspense } from 'react';
 import ContactForm from './components/Contact';
+import SystemPrompts from './components/PromptEditor';
+
 function App() {
   const { isAuthenticated, isLoading, loginWithRedirect, user, logout } = useAuth0();
   const Dashboard = lazy(() => import('./components/Dashboard'));
@@ -86,7 +88,14 @@ function App() {
             } />
 
 
-
+            <Route path="/PromptEditor" element={
+              <ProtectedRoute>
+                <NavBar />
+                <main className="app-content">
+                  <SystemPrompts />
+                </main>
+              </ProtectedRoute>
+            } />
             <Route path="/contact" element={
               <ProtectedRoute>
                 <NavBar />
@@ -95,7 +104,7 @@ function App() {
                 </main>
               </ProtectedRoute>
             }></Route>
-            
+
             {/* Redirect to login if no match */}
             {/* <Route path="*" element={<Navigate to="/login" />} /> */}
           </Routes>
