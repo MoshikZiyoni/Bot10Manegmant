@@ -1,7 +1,7 @@
 // src/components/SystemPrompts.js
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-import { Save, Edit, X, RefreshCw, FileText } from 'lucide-react';
+import { Save, Edit, X, RefreshCw, FileText, Download } from 'lucide-react'; // הוספתי את Download לאייקון
 
 const SystemPrompts = () => {
     const [prompts, setPrompts] = useState([]);
@@ -9,6 +9,7 @@ const SystemPrompts = () => {
     const [editContent, setEditContent] = useState('');
     const [loading, setLoading] = useState(false);
     const [saving, setSaving] = useState(false);
+    const [syncing, setSyncing] = useState(false); // State חדש לסנכרון
     const [message, setMessage] = useState(null);
 
     const baseURL = process.env.REACT_APP_API_URL || 'http://localhost:8000';
@@ -28,6 +29,26 @@ const SystemPrompts = () => {
             showMessage("Failed to load prompts", "error");
         } finally {
             setLoading(false);
+        }
+    };
+
+    // פונקציה חדשה לסנכרון
+    const handleSync = async () => {
+        setSyncing(true);
+        try {
+            // קריאה ל-API לביצוע ה-Import
+            // הערה: השתמשתי ב-POST, אם ה-View שלך מצפה ל-GET תשנה ל-axios.get
+            await axios.post(`${baseURL}/api/import-prompts/`);
+            
+            showMessage("Prompts synced successfully!", "success");
+            
+            // רענון הרשימה לאחר הסנכרון כדי לראות את השינויים
+            await fetchPrompts();
+        } catch (error) {
+            console.error("Error syncing prompts", error);
+            showMessage("Failed to sync prompts", "error");
+        } finally {
+            setSyncing(false);
         }
     };
 
@@ -67,12 +88,16 @@ const SystemPrompts = () => {
     const styles = {
         container: { display: 'flex', height: '85vh', gap: '20px', padding: '20px', fontFamily: 'Segoe UI, sans-serif' },
         sidebar: { width: '300px', background: '#fff', borderRadius: '12px', boxShadow: '0 4px 12px rgba(0,0,0,0.05)', overflowY: 'auto', padding: '15px' },
+        // הוספתי סגנון לכותרת ה-Sidebar כדי ליישר את הכפתור
+        sidebarHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' },
         editor: { flex: 1, background: '#fff', borderRadius: '12px', boxShadow: '0 4px 12px rgba(0,0,0,0.05)', display: 'flex', flexDirection: 'column', padding: '20px' },
         listItem: { padding: '12px', cursor: 'pointer', borderRadius: '8px', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '10px', transition: 'all 0.2s' },
         textArea: { flex: 1, width: '100%', padding: '15px', borderRadius: '8px', border: '1px solid #e0e0e0', fontSize: '16px', fontFamily: 'monospace', resize: 'none', lineHeight: '1.5', outline: 'none' },
         header: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' },
         button: { padding: '10px 20px', borderRadius: '8px', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', fontWeight: '600' },
         saveBtn: { background: '#f9bb2b', color: '#07455c' },
+        // סגנון לכפתור הסינכרון החדש
+        syncBtn: { background: '#eaf2f8', color: '#1c7d95', border: 'none', borderRadius: '6px', padding: '6px 10px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '5px', fontSize: '13px', fontWeight: '600' },
         msg: { padding: '10px', borderRadius: '8px', marginBottom: '10px', textAlign: 'center', fontWeight: 'bold' }
     };
 
@@ -80,7 +105,21 @@ const SystemPrompts = () => {
         <div style={styles.container}>
             {/* Sidebar List */}
             <div style={styles.sidebar}>
-                <h3 style={{marginBottom: '15px', color: '#07455c'}}>System Prompts</h3>
+                <div style={styles.sidebarHeader}>
+                    <h3 style={{margin: 0, color: '#07455c'}}>System Prompts</h3>
+                    
+                    {/* כפתור הסנכרון החדש */}
+                    <button 
+                        style={{...styles.syncBtn, opacity: syncing ? 0.7 : 1}} 
+                        onClick={handleSync}
+                        disabled={syncing}
+                        title="Sync Prompts from Source"
+                    >
+                        <RefreshCw size={14} className={syncing ? 'spin' : ''} />
+                        Sync
+                    </button>
+                </div>
+
                 {loading ? <p>Loading...</p> : prompts.map(p => (
                     <div 
                         key={p.id} 
