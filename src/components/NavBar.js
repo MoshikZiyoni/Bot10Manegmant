@@ -14,6 +14,7 @@ const NavBar = () => {
   const [alertCount, setAlertCount] = useState(0);
   const [showAlerts, setShowAlerts] = useState(false);
   const baseURL = process.env.REACT_APP_API_URL || 'http://localhost:8000';
+
   const fetchAlertCount = async () => {
     try {
       const res = await fetch(`${baseURL}/api/calls/alert-count/`); // New endpoint
@@ -26,11 +27,11 @@ const NavBar = () => {
     }
   };
 
-  // Fetch count on mount and every 30 seconds
+  // Fetch count on mount and every 5 minutes
   useEffect(() => {
     if (user) {
       fetchAlertCount();
-      const interval = setInterval(fetchAlertCount, 30000);
+      const interval = setInterval(fetchAlertCount, 300000);
       return () => clearInterval(interval);
     }
   }, [user]);

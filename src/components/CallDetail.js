@@ -80,6 +80,17 @@ function CallDetail() {
     );
   };
 
+  // Function to highlight specific text
+  const highlightText = (text) => {
+    if (!text) return text;
+    const parts = text.split(/(נבדוק את זה)/g);
+    return parts.map((part, index) =>
+      part === "נבדוק את זה" ?
+        <span key={index} style={{ color: 'red', fontWeight: 'bold' }}>{part}</span> :
+        part
+    );
+  };
+
   return (
     <div className="call-detail-container">
       <div className="page-header">
@@ -156,8 +167,8 @@ function CallDetail() {
         {call.conversation && call.conversation.length > 0 ? (
           <div className="conversation-timeline">
             {call.conversation.map((turn, index) => (
-              
-              
+
+
               <div
                 key={index}
                 className={`conversation-turn ${turn.is_ai ? 'ai-turn' : 'user-turn'}`}
@@ -171,8 +182,8 @@ function CallDetail() {
                   <strong>{turn.is_ai ? 'AI' : 'User'}</strong>
                 </div>
                 <div className="turn-content-bubble">
-                  <p dir="rtl">{turn.text}</p>
-                   {typeof turn.timestamp_sec !== 'undefined' && (
+                  <p dir="rtl">{highlightText(turn.text)}</p>
+                  {typeof turn.timestamp_sec !== 'undefined' && (
                     <div className="turn-timestamp" style={{ fontSize: '0.85rem', color: '#6c757d', marginTop: '6px', textAlign: 'right' }}>
                       {(turn.timestamp_sec)}
                     </div>

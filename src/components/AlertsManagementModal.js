@@ -405,6 +405,7 @@ const AlertsManagementModal = ({ onClose, onUpdate }) => {
                                                     variant="dismiss"
                                                 >
                                                     <XCircle size={16} />
+                                                    Dismissed
                                                 </Button>
                                             </div>
                                         </td>

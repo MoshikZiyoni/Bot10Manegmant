@@ -8,6 +8,7 @@ import { useAuth0 } from "@auth0/auth0-react";
 import { useEffect, lazy, Suspense } from 'react';
 import ContactForm from './components/Contact';
 import SystemPrompts from './components/PromptEditor';
+import UsageReport from './components/UsageReport';
 
 function App() {
   const { isAuthenticated, isLoading, loginWithRedirect, user, logout } = useAuth0();
@@ -96,6 +97,16 @@ function App() {
                 </main>
               </ProtectedRoute>
             } />
+
+            <Route path="/UsageReport" element={
+              <ProtectedRoute>
+                <NavBar />
+                <main className="app-content">
+                  <UsageReport />
+                </main>
+              </ProtectedRoute>
+            } />
+
             <Route path="/contact" element={
               <ProtectedRoute>
                 <NavBar />
