@@ -2,6 +2,7 @@ import { BrowserRouter as Router, Routes, Route, Link } from 'react-router-dom';
 
 import Login from './auth/Login';
 import ProtectedRoute from './auth/protected-route';
+import ProtectedAdminRoute from './auth/ProtectedAdminRoute';
 import NavBar from './components/NavBar';
 import './App.css';
 import { useAuth0 } from "@auth0/auth0-react";
@@ -16,6 +17,7 @@ function App() {
   const CallList = lazy(() => import('./components/CallList'));
   const CallDetail = lazy(() => import('./components/CallDetail'));
   const NewCall = lazy(() => import('./components/NewCall'));
+  const AdminDashboard = lazy(() => import('./components/AdminDashboard'));
   const ALLOWED_EMAILS = (process.env.REACT_APP_ALLOWED_EMAILS || "")
     .split(",")
     .map(email => email.trim())
@@ -59,6 +61,15 @@ function App() {
                   <Dashboard />
                 </main>
               </ProtectedRoute>
+            } />
+
+            <Route path="/admin" element={
+              <ProtectedAdminRoute>
+                <NavBar />
+                <main className="app-content">
+                  <AdminDashboard />
+                </main>
+              </ProtectedAdminRoute>
             } />
 
             <Route path="/calls" element={

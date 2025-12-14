@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Calendar, Search, Clock, Phone } from 'lucide-react';
+import { Search, Clock, Phone } from 'lucide-react';
 
 const UsageReport = () => {
     const [startDate, setStartDate] = useState('');
@@ -8,6 +8,7 @@ const UsageReport = () => {
     const [report, setReport] = useState(null);
     const [loading, setLoading] = useState(false);
     const [isHovered, setIsHovered] = useState(false);
+    const [multiplier, setMultiplier] = useState(1.5);
     const baseURL = process.env.REACT_APP_API_URL || '';
 
     const handleCheckUsage = async (e) => {
@@ -101,6 +102,23 @@ const UsageReport = () => {
             transition: 'all 0.2s ease',
             boxSizing: 'border-box',
         },
+        select: {
+            width: '100%',
+            padding: '14px 16px',
+            fontSize: '1rem',
+            color: '#1f2937',
+            backgroundColor: '#f9fafb',
+            border: '2px solid #f3f4f6',
+            borderRadius: '12px',
+            outline: 'none',
+            transition: 'all 0.2s ease',
+            boxSizing: 'border-box',
+            appearance: 'none',
+            backgroundImage: `url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e")`,
+            backgroundRepeat: 'no-repeat',
+            backgroundPosition: 'right 1rem center',
+            backgroundSize: '1em',
+        },
         dateGrid: {
             display: 'grid',
             gridTemplateColumns: '1fr 1fr',
@@ -153,8 +171,8 @@ const UsageReport = () => {
         },
         statsGrid: {
             display: 'grid',
-            gridTemplateColumns: '1fr 1fr',
-            gap: '1.5rem',
+            gridTemplateColumns: '1fr 1fr 1fr', // Changed to 3 columns
+            gap: '1rem',
         },
         statBox: {
             backgroundColor: 'white',
@@ -173,7 +191,7 @@ const UsageReport = () => {
             fontWeight: '600',
         },
         statValue: (color) => ({
-            fontSize: '2rem',
+            fontSize: '1.75rem', // Slightly smaller font for 3 columns
             fontWeight: '700',
             color: color,
             margin: 0,
@@ -232,6 +250,20 @@ const UsageReport = () => {
                     </div>
                 </div>
 
+                <div style={styles.inputGroup}>
+                    <label style={styles.label}>Price Multiplier (Rate)</label>
+                    <select
+                        value={multiplier}
+                        onChange={(e) => setMultiplier(parseFloat(e.target.value))}
+                        style={styles.select}
+                    >
+                        <option value={1.5}>1.5 (Standard)</option>
+                        <option value={1.3}>1.3 (Discounted)</option>
+                        <option value={1.0}>1.0 (Base Rate)</option>
+                        <option value={0.85}>0.85 (VIP)</option>
+                    </select>
+                </div>
+
                 <button
                     type="submit"
                     disabled={loading}
@@ -255,9 +287,15 @@ const UsageReport = () => {
                             <p style={styles.statLabel}>Total Calls</p>
                             <p style={styles.statValue('#9333ea')}>{report.usage.call_count}</p>
                         </div>
+                        <div style={styles.statBox}>
+                            <p style={styles.statLabel}>Total Price</p>
+                            <p style={styles.statValue('#10b981')}>
+                                {(report.usage.total_minutes * multiplier).toFixed(2)} ש"ח
+                            </p>
+                        </div>
                     </div>
                     <div style={styles.period}>
-                        Period: {report.period.start} to {report.period.end}
+                        Period: {report.period.start} to {report.period.end} (Rate: x{multiplier})
                     </div>
                 </div>
             )}
