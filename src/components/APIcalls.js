@@ -87,6 +87,18 @@ export const callsApi = {
       status: newStatus
     });
     return response.data;
+  },
+
+  getVoiceSetting: async () => {
+    const response = await api.get('/api/admin/voice-setting/');
+    return response.data;
+  },
+
+  updateVoiceSetting: async (voiceId) => {
+    const response = await api.post('/api/admin/voice-setting/update/', {
+      voice_id: voiceId
+    });
+    return response.data;
   }
 };
 

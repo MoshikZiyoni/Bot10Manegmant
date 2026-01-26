@@ -138,7 +138,7 @@ function CallDetail() {
           <div className="meta-item">
             <Clock size={16} />
             <span className="meta-label">Duration:</span>
-            <span className="meta-value">{formatDuration(call.total_duration)}</span>
+            <span className="meta-value">{call.billable_minutes} min</span>
           </div>
           <div className="meta-item">
             <span className="meta-label">Call SID:</span>

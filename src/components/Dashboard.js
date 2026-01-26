@@ -85,7 +85,8 @@ const Dashboard = () => {
           busyCalls: data.busyCalls || 0,
           canceledCalls: data.canceledCalls || 0,
           averageDuration: data.averageDuration || 0,
-          totalDuration: data.totalDuration || 0
+          totalDuration: data.totalDuration || 0,
+          totalBillableMinutes: data.totalBillableMinutes || 0
         };
 
         setStats(processedStats);
@@ -95,7 +96,7 @@ const Dashboard = () => {
         // Set empty stats on error to prevent crashes
         setStats({
           totalCalls: 0, incomingCalls: 0, outgoingCalls: 0, completedCalls: 0, failedCalls: 0,
-          inProgressCalls: 0, busyCalls: 0, canceledCalls: 0, averageDuration: 0, totalDuration: 0
+          inProgressCalls: 0, busyCalls: 0, canceledCalls: 0, averageDuration: 0, totalDuration: 0, totalBillableMinutes: 0
         });
       } finally {
         setLoading(false);
@@ -166,7 +167,7 @@ const Dashboard = () => {
         <StatCard icon={<PhoneIncoming size={24} />} title="Incoming Calls" value={stats.incomingCalls} color={brandColors.accentBlue} />
         <StatCard icon={<PhoneOutgoing size={24} />} title="Outgoing Calls" value={stats.outgoingCalls} color={brandColors.yellow} />
         <StatCard icon={<Clock size={24} />} title="Avg. Duration" value={`${(stats.averageDuration / 60).toFixed(1)} min`} color="#3498db" />
-        <StatCard icon={<BarChart2 size={24} />} title="Total Duration" value={`${(stats.totalDuration / 3600).toFixed(1)} hr`} color="#27ae60" />
+        <StatCard icon={<BarChart2 size={24} />} title="Total Billable" value={`${stats.totalBillableMinutes} min`} color="#27ae60" />
 
         {/* <StatCard icon={<Loader2 size={24}/>} title="In Progress" value={stats.inProgressCalls} color={brandColors.accentBlue} /> Optional: show in progress */}
         {/* <StatCard icon={<XCircle size={24}/>} title="Failed Calls" value={stats.failedCalls} color="#c0392b" /> Optional: show failed */}
@@ -223,7 +224,7 @@ const Dashboard = () => {
                   {call.direction === 'in' ? 'Incoming' : 'Outgoing'}
                 </div></td>
                 <td style={styles.tableTd}><span style={getStatusStyle(call.status)}>{call.status.replace(/_/g, ' ')}</span></td>
-                <td style={styles.tableTd}>{(call.total_duration / 60).toFixed(1)} min</td>
+                <td style={styles.tableTd}>{call.billable_minutes} min</td>
                 <td style={styles.tableTd}>{call.formatted_created_at}</td>
                 <td style={styles.tableTd}><Link to={`/calls/${call.id}`} style={styles.viewLink}>View</Link></td>
               </tr>

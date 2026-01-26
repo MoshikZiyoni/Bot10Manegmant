@@ -1,4 +1,4 @@
-import  { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 // The user's code uses Link, but in this environment, a standard <a> tag is used for navigation.
 // import { Link } from 'react-router-dom';
 import { PhoneIncoming, PhoneOutgoing, Search, Filter, Download, ChevronDown, Loader2, ArrowUp, ArrowDown } from 'lucide-react'; // Import ArrowUp and ArrowDown
@@ -37,7 +37,7 @@ const CallList = () => {
     useEffect(() => {
         fetchCalls();
     }, [page, filters.direction, filters.status, filters.has_offer, filters.created_within_days, sortOrder]); // Add sortOrder to dependencies
-    
+
     useEffect(() => {
         const timeoutId = setTimeout(() => {
             if (Object.values(filters).some(value => value !== '')) {
@@ -46,7 +46,7 @@ const CallList = () => {
         }, 500);
         return () => clearTimeout(timeoutId);
     }, [filters]);
-    
+
 
     const fetchCalls = async () => {
         setLoading(true);
@@ -57,13 +57,13 @@ const CallList = () => {
             if (filters.search) params.append('search', filters.search);
             if (filters.has_offer) params.append('has_offer', filters.has_offer);
             if (filters.created_within_days && filters.created_within_days !== 'custom') {
-                 params.append('created_within_days', filters.created_within_days);
+                params.append('created_within_days', filters.created_within_days);
             }
             // Add sorting parameter
             if (sortOrder) {
                 params.append('ordering', sortOrder === 'asc' ? 'created_at' : '-created_at');
             }
-            
+
             const response = await axios.get(`${baseURL}/api/calls/?${params.toString()}`);
             setCalls(response.data.results || []);
             setTotalPages(Math.ceil((response.data.count || 0) / 10));
@@ -76,7 +76,7 @@ const CallList = () => {
             setLoading(false);
         }
     };
-    
+
     // This effect syncs the custom input field with the filter value.
     useEffect(() => {
         const isPredefined = ['', 'today', '7', '30', '90', 'custom'].includes(filters.created_within_days);
@@ -91,10 +91,10 @@ const CallList = () => {
         const { name, value } = e.target;
         setFilters(prev => ({ ...prev, [name]: value }));
         if (name !== 'search') {
-             setPage(1);
+            setPage(1);
         }
     };
-    
+
     const handleCustomDaysChange = (e) => {
         const val = e.target.value;
         setCustomDaysInput(val);
@@ -156,10 +156,10 @@ const CallList = () => {
             setExporting(false);
         }
     };
-    
+
     const getPaginationPages = (currentPage, totalPages) => {
         const pages = [];
-        const numPageLinks = 5; 
+        const numPageLinks = 5;
         const sidePages = Math.floor(numPageLinks / 2);
 
         let startPage = Math.max(1, currentPage - sidePages);
@@ -224,27 +224,27 @@ const CallList = () => {
         viewLink: { textDecoration: 'none', color: brandColors.accentBlue, fontWeight: 'bold' },
         paginationContainer: { display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '2rem 0' },
         pageButton: { background: '#fff', border: '1px solid #ccc', borderRadius: '6px', minWidth: '40px', height: '40px', cursor: 'pointer', margin: '0 4px', color: brandColors.darkBlue, display: 'flex', justifyContent: 'center', alignItems: 'center' },
-        paginationEllipsis: { margin: '0 8px', color: '#ccc'},
+        paginationEllipsis: { margin: '0 8px', color: '#ccc' },
         activePage: { backgroundColor: brandColors.darkBlue, color: 'white', borderColor: brandColors.darkBlue },
         loader: { textAlign: 'center', padding: '4rem', fontSize: '1.2rem', color: brandColors.accentBlue, display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '1rem' },
         spinner: { animation: 'spin 1s linear infinite' },
         noResults: { textAlign: 'center', padding: '4rem', fontSize: '1.2rem', color: brandColors.accentBlue },
         sortArrow: { cursor: 'pointer', marginLeft: '5px', display: 'inline-flex', alignItems: 'center', verticalAlign: 'middle' },
     };
-    
+
     const getStatusStyle = (status) => {
         const base = styles.statusBadge;
-        switch(status) {
-            case 'completed': return {...base, color: '#27ae60', backgroundColor: '#eafaf1'};
-            case 'failed': return {...base, color: '#c0392b', backgroundColor: '#f9ebea'};
-            case 'in_progress': return {...base, color: '#2980b9', backgroundColor: '#eaf2f8'};
-            case 'canceled': return {...base, color: '#f39c12', backgroundColor: '#fef5e7'};
-            case 'busy': return {...base, color: '#8e44ad', backgroundColor: '#f4ecf7'};
-            case 'voicemail_detected': return {...base, color: '#f1c40f', backgroundColor: '#fef9e7'};
-            default: return {...base, color: '#7f8c8d', backgroundColor: '#f4f6f7'};
+        switch (status) {
+            case 'completed': return { ...base, color: '#27ae60', backgroundColor: '#eafaf1' };
+            case 'failed': return { ...base, color: '#c0392b', backgroundColor: '#f9ebea' };
+            case 'in_progress': return { ...base, color: '#2980b9', backgroundColor: '#eaf2f8' };
+            case 'canceled': return { ...base, color: '#f39c12', backgroundColor: '#fef5e7' };
+            case 'busy': return { ...base, color: '#8e44ad', backgroundColor: '#f4ecf7' };
+            case 'voicemail_detected': return { ...base, color: '#f1c40f', backgroundColor: '#fef9e7' };
+            default: return { ...base, color: '#7f8c8d', backgroundColor: '#f4f6f7' };
         }
     };
-    
+
     const isCustomDate = !['', 'today', '7', '30', '90'].includes(filters.created_within_days);
     const dateDropdownValue = isCustomDate ? 'custom' : filters.created_within_days;
 
@@ -253,17 +253,17 @@ const CallList = () => {
             <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } } .calls-table tbody tr:hover { transform: translateY(-2px); box-shadow: 0 6px 12px rgba(0,0,0,0.08); }`}</style>
             <header style={styles.header}>
                 <h1 style={styles.title}>Call History</h1>
-                <Link to="/calls/new" style={styles.newCallButton}>New Call</Link>
+                {/* <Link to="/calls/new" style={styles.newCallButton}>New Call</Link> */}
             </header>
 
             <div style={styles.controlsContainer}>
                 <div style={styles.topControls}>
                     <div style={styles.searchInput}>
-                        <Search size={18} style={styles.searchInputIcon}/>
-                        <input style={styles.searchInputEl} type="text" placeholder="Search by phone number..." name="search" value={filters.search} onChange={handleFilterChange}/>
+                        <Search size={18} style={styles.searchInputIcon} />
+                        <input style={styles.searchInputEl} type="text" placeholder="Search by phone number..." name="search" value={filters.search} onChange={handleFilterChange} />
                     </div>
                     <button style={styles.filterButton} onClick={() => setShowFilters(!showFilters)}>
-                        <Filter size={16}/> Filters <ChevronDown size={16} style={{transform: showFilters ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s'}}/>
+                        <Filter size={16} /> Filters <ChevronDown size={16} style={{ transform: showFilters ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }} />
                     </button>
                 </div>
                 {showFilters && (
@@ -275,14 +275,14 @@ const CallList = () => {
                             </select>
                         </div>
                         <div style={styles.filterGroup}>
-                             <label style={styles.filterLabel}>Created Within</label>
+                            <label style={styles.filterLabel}>Created Within</label>
                             <select style={styles.filterSelect} name="created_within_days" value={dateDropdownValue} onChange={handleFilterChange}>
                                 <option value="">Any time</option><option value="today">Today</option><option value="7">7 days</option><option value="30">30 days</option><option value="90">90 days</option><option value="custom">Custom...</option>
                             </select>
-                             {dateDropdownValue === "custom" && (
+                            {dateDropdownValue === "custom" && (
                                 <div style={styles.customDaysGroup}>
-                                     <input type="number" min="1" placeholder="Days" value={customDaysInput} onChange={handleCustomDaysChange} style={{...styles.filterSelect, width: '80px', marginTop: '4px'}}/>
-                                     <span style={{color: brandColors.accentBlue}}>days</span>
+                                    <input type="number" min="1" placeholder="Days" value={customDaysInput} onChange={handleCustomDaysChange} style={{ ...styles.filterSelect, width: '80px', marginTop: '4px' }} />
+                                    <span style={{ color: brandColors.accentBlue }}>days</span>
                                 </div>
                             )}
                         </div>
@@ -294,7 +294,7 @@ const CallList = () => {
                         </div>
                         <div style={styles.filterGroup}>
                             <label style={styles.filterLabel}>Has Offer</label>
-                             <select style={styles.filterSelect} name="has_offer" value={filters.has_offer} onChange={handleFilterChange}>
+                            <select style={styles.filterSelect} name="has_offer" value={filters.has_offer} onChange={handleFilterChange}>
                                 <option value="">All</option><option value="true">Yes</option><option value="false">No</option>
                             </select>
                         </div>
@@ -311,7 +311,7 @@ const CallList = () => {
                     </button>
                 </div>
                 {loading ? (
-                     <div style={styles.loader}><Loader2 size={24} style={styles.spinner}/> Loading calls...</div>
+                    <div style={styles.loader}><Loader2 size={24} style={styles.spinner} /> Loading calls...</div>
                 ) : calls.length > 0 ? (
                     <table style={styles.table}>
                         <thead><tr>
@@ -330,12 +330,12 @@ const CallList = () => {
                                 <td style={styles.tableTd}>{call.phone_number}</td>
                                 <td style={styles.tableTd}>
                                     <div style={styles.iconTd}>
-                                    {call.direction === 'in' ? <PhoneIncoming size={18} color="#27ae60"/> : <PhoneOutgoing size={18} color="#2980b9"/>}
-                                    {call.direction === 'in' ? 'Incoming' : 'Outgoing'}
+                                        {call.direction === 'in' ? <PhoneIncoming size={18} color="#27ae60" /> : <PhoneOutgoing size={18} color="#2980b9" />}
+                                        {call.direction === 'in' ? 'Incoming' : 'Outgoing'}
                                     </div>
                                 </td>
                                 <td style={styles.tableTd}><span style={getStatusStyle(call.status)}>{call.status.replace(/_/g, ' ')}</span></td>
-                                <td style={styles.tableTd}>{(call.total_duration / 60).toFixed(2)} min</td>
+                                <td style={styles.tableTd}>{call.billable_minutes} min</td>
                                 <td style={styles.tableTd}>{call.formatted_created_at}</td>
                                 <td style={styles.tableTd}><Link to={`/calls/${call.id}`} style={styles.viewLink}>View Details</Link></td>
                             </tr>
@@ -346,21 +346,21 @@ const CallList = () => {
                 )}
             </div>
 
-             {totalPages > 1 && !loading && (
-                 <div style={styles.paginationContainer}>
-                     <button style={{...styles.pageButton, padding: '8px 12px'}} onClick={() => setPage(p => p - 1)} disabled={page === 1}>Previous</button>
-                     {getPaginationPages(page, totalPages).map((p, index) =>
+            {totalPages > 1 && !loading && (
+                <div style={styles.paginationContainer}>
+                    <button style={{ ...styles.pageButton, padding: '8px 12px' }} onClick={() => setPage(p => p - 1)} disabled={page === 1}>Previous</button>
+                    {getPaginationPages(page, totalPages).map((p, index) =>
                         p === '...' ? (
                             <span key={`ellipsis-${index}`} style={styles.paginationEllipsis}>...</span>
                         ) : (
-                            <button key={p} onClick={() => setPage(p)} style={page === p ? {...styles.pageButton, ...styles.activePage} : styles.pageButton}>
+                            <button key={p} onClick={() => setPage(p)} style={page === p ? { ...styles.pageButton, ...styles.activePage } : styles.pageButton}>
                                 {p}
                             </button>
                         )
                     )}
-                     <button style={{...styles.pageButton, padding: '8px 12px'}} onClick={() => setPage(p => p + 1)} disabled={page === totalPages}>Next</button>
-                 </div>
-             )}
+                    <button style={{ ...styles.pageButton, padding: '8px 12px' }} onClick={() => setPage(p => p + 1)} disabled={page === totalPages}>Next</button>
+                </div>
+            )}
         </div>
     );
 };

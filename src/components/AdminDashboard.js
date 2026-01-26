@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
-import { Activity, Users, ShieldAlert, LayoutDashboard } from 'lucide-react';
+import { Activity, Users, ShieldAlert, LayoutDashboard, Mic } from 'lucide-react';
 import LiveCallMonitor from './LiveCallMonitor';
 import UserCreditManager from './AdminUserList'; // Pending creation
 import SystemControlPanel from './AdminSystemPanel'; // Pending creation
 import UsageReport from './UsageReport';
 import SystemPrompts from './PromptEditor';
+import VoiceSelector from './VoiceSelector';
 
 const AdminDashboard = () => {
     const [activeTab, setActiveTab] = useState('live');
@@ -67,6 +68,8 @@ const AdminDashboard = () => {
                 return <UsageReport />;
             case 'system_prompt':
                 return <SystemPrompts />;
+            case 'voice':
+                return <VoiceSelector />;
             default:
                 return <LiveCallMonitor />;
         }
@@ -117,6 +120,13 @@ const AdminDashboard = () => {
                     onClick={() => setActiveTab('system_prompt')}
                 >
                     System Prompt
+                </button>
+                <button
+                    style={styles.tab(activeTab === 'voice')}
+                    onClick={() => setActiveTab('voice')}
+                >
+                    <Mic size={18} />
+                    Voice
                 </button>
             </div>
 
