@@ -109,14 +109,14 @@ const NewCall = () => {
         }
         parseFile(selectedFile, fileExtension);
         setTimeout(() => {
-        const footerElement = document.querySelector('.app-footer');
-        if (footerElement) {
-            footerElement.scrollIntoView({
-                behavior: 'smooth',
-                block: 'end' // Scrolls the element into view at the end of the scrollable area
-            });
-        }
-    }, 100);
+            const footerElement = document.querySelector('.app-footer');
+            if (footerElement) {
+                footerElement.scrollIntoView({
+                    behavior: 'smooth',
+                    block: 'end' // Scrolls the element into view at the end of the scrollable area
+                });
+            }
+        }, 100);
     };
 
     /**

@@ -5,12 +5,16 @@ import { callsApi } from './APIcalls';
 const LiveCallMonitor = () => {
     const [calls, setCalls] = useState([]);
     const [loading, setLoading] = useState(false);
+    const [selectedCalls, setSelectedCalls] = useState([]);
+    const [terminating, setTerminating] = useState(false);
 
     const fetchCalls = async () => {
         setLoading(true);
         try {
             const data = await callsApi.getActiveCalls();
             setCalls(data);
+            // Clean up selected calls that are no longer active
+            setSelectedCalls(prev => prev.filter(id => data.find(c => c.id === id)));
         } catch (error) {
             console.error("Failed to fetch active calls", error);
         } finally {
@@ -30,10 +34,43 @@ const LiveCallMonitor = () => {
             try {
                 await callsApi.terminateCall(callId);
                 setCalls(prev => prev.filter(c => c.id !== callId));
+                setSelectedCalls(prev => prev.filter(id => id !== callId));
                 alert("Call terminated successfully.");
             } catch (error) {
                 alert("Failed to terminate call.");
             }
+        }
+    };
+
+    const handleSelectCall = (id) => {
+        setSelectedCalls(prev =>
+            prev.includes(id) ? prev.filter(callId => callId !== id) : [...prev, id]
+        );
+    };
+
+    const handleSelectAll = () => {
+        if (selectedCalls.length === calls.length) {
+            setSelectedCalls([]);
+        } else {
+            setSelectedCalls(calls.map(call => call.id));
+        }
+    };
+
+    const handleTerminateSelected = async () => {
+        if (!window.confirm(`Are you sure you want to terminate ${selectedCalls.length} calls?`)) return;
+
+        setTerminating(true);
+        try {
+            await callsApi.terminateMultipleCalls(selectedCalls);
+            // Refresh calls to reflect termination
+            await fetchCalls();
+            setSelectedCalls([]);
+            alert('Selected calls have been processed for termination.');
+        } catch (error) {
+            console.error('Error terminating calls:', error);
+            alert('Failed to terminate some calls.');
+        } finally {
+            setTerminating(false);
         }
     };
 
@@ -79,22 +116,56 @@ const LiveCallMonitor = () => {
     return (
         <div style={styles.container}>
             <div style={styles.headerBar}>
-                <h3 style={{ fontSize: '1.25rem', fontWeight: 'bold' }}>Active Sessions ({calls.length})</h3>
-                <button onClick={fetchCalls} style={styles.refreshBtn}>
-                    <RefreshCw size={16} className={loading ? "animate-spin" : ""} />
-                    Refresh
-                </button>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                    <h3 style={{ fontSize: '1.25rem', fontWeight: 'bold', margin: 0 }}>Active Sessions ({calls.length})</h3>
+                    {calls.length > 0 && (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginLeft: '1rem' }}>
+                            <input
+                                type="checkbox"
+                                checked={calls.length > 0 && selectedCalls.length === calls.length}
+                                onChange={handleSelectAll}
+                                style={{ width: '18px', height: '18px', cursor: 'pointer' }}
+                            />
+                            <span style={{ fontSize: '0.9rem' }}>Select All</span>
+                        </div>
+                    )}
+                </div>
+
+                <div style={{ display: 'flex', gap: '10px' }}>
+                    {selectedCalls.length > 0 && (
+                        <button
+                            onClick={handleTerminateSelected}
+                            disabled={terminating}
+                            style={{ ...styles.refreshBtn, backgroundColor: '#c0392b', color: 'white', border: 'none' }}
+                        >
+                            <PhoneOff size={16} />
+                            {terminating ? 'Terminating...' : `Terminate Selected (${selectedCalls.length})`}
+                        </button>
+                    )}
+                    <button onClick={fetchCalls} style={styles.refreshBtn}>
+                        <RefreshCw size={16} className={loading ? "animate-spin" : ""} />
+                        Refresh
+                    </button>
+                </div>
             </div>
 
             <div style={styles.grid}>
                 {calls.map(call => (
                     <div key={call.id} style={styles.card}>
+                        <div style={{ position: 'absolute', top: '12px', left: '12px', zIndex: 10 }}>
+                            <input
+                                type="checkbox"
+                                checked={selectedCalls.includes(call.id)}
+                                onChange={() => handleSelectCall(call.id)}
+                                style={{ width: '18px', height: '18px', cursor: 'pointer' }}
+                            />
+                        </div>
                         <div style={styles.activeIndicator}>
                             <div style={{ width: 8, height: 8, background: 'white', borderRadius: '50%', animation: 'pulse 1s infinite' }} />
                             LIVE
                         </div>
 
-                        <div style={{ marginBottom: '1rem', paddingBottom: '1rem', borderBottom: '1px solid #f3f4f6' }}>
+                        <div style={{ marginBottom: '1rem', paddingBottom: '1rem', borderBottom: '1px solid #f3f4f6', paddingLeft: '24px' }}>
                             <div style={{ fontSize: '1.1rem', fontWeight: 'bold', color: '#1f2937' }}>{call.caller_id}</div>
                             <div style={{ color: '#6b7280', fontSize: '0.9rem' }}>{call.phone_number}</div>
                         </div>

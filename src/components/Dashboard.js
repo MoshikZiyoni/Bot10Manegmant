@@ -167,7 +167,7 @@ const Dashboard = () => {
         <StatCard icon={<PhoneIncoming size={24} />} title="Incoming Calls" value={stats.incomingCalls} color={brandColors.accentBlue} />
         <StatCard icon={<PhoneOutgoing size={24} />} title="Outgoing Calls" value={stats.outgoingCalls} color={brandColors.yellow} />
         <StatCard icon={<Clock size={24} />} title="Avg. Duration" value={`${(stats.averageDuration / 60).toFixed(1)} min`} color="#3498db" />
-        <StatCard icon={<BarChart2 size={24} />} title="Total Billable" value={`${stats.totalBillableMinutes} min`} color="#27ae60" />
+        <StatCard icon={<BarChart2 size={24} />} title="Total Duration" value={`${stats.totalBillableMinutes} min`} color="#27ae60" />
 
         {/* <StatCard icon={<Loader2 size={24}/>} title="In Progress" value={stats.inProgressCalls} color={brandColors.accentBlue} /> Optional: show in progress */}
         {/* <StatCard icon={<XCircle size={24}/>} title="Failed Calls" value={stats.failedCalls} color="#c0392b" /> Optional: show failed */}

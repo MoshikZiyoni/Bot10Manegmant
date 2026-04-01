@@ -25,6 +25,63 @@ const CallList = () => {
     const [showFilters, setShowFilters] = useState(false);
     // New state for sorting 'created_at'
     const [sortOrder, setSortOrder] = useState('desc'); // 'asc', 'desc', or '' for no sort
+    const [selectedCalls, setSelectedCalls] = useState([]);
+    const [terminating, setTerminating] = useState(false);
+    // Import callsApi logic
+    // We need to import callsApi. Since it's exported from APIcalls.js as 'callsApi', we likely need to fix imports or just use the default export if attached to it. 
+    // Looking at file 2, APIcalls.js exports `callsApi` as a named export and `api` (axios instance) as default. 
+    // We should probably check the imports in CallList.js, but I'll assume I can just use `api` for now if `callsApi` isn't imported, 
+    // OR better, let's update imports in a separate step or assume it is available. 
+    // Wait, the file 1 (CallList.js) imports `axios` directly but doesn't seem to import `callsApi` from `./APIcalls`. 
+    // It makes raw axios calls. I should stick to that pattern or import `callsApi`. 
+    // To be consistent with existing code in CallList.js which uses `axios` and `baseURL`, I will initially implement the termination call using `axios` directly for reliability 
+    // unless I verify `callsApi` is imported. It is NOT imported in line 1-6. 
+    // However, I just added `terminateMultipleCalls` to `APIcalls.js`. To use it, I should import `callsApi`.
+
+    // I will add the logic functions here. I will need to update imports in a separate step to import { callsApi } from './APIcalls'.
+
+    const handleSelectCall = (id) => {
+        setSelectedCalls(prev =>
+            prev.includes(id) ? prev.filter(callId => callId !== id) : [...prev, id]
+        );
+    };
+
+    const handleSelectAll = () => {
+        if (selectedCalls.length === calls.length) {
+            setSelectedCalls([]);
+        } else {
+            setSelectedCalls(calls.map(call => call.id));
+        }
+    };
+
+    const handleTerminateSelected = async () => {
+        if (!window.confirm(`Are you sure you want to terminate ${selectedCalls.length} calls?`)) return;
+
+        setTerminating(true);
+        try {
+            // We use the same endpoint logic as in APIcalls.js
+            // Since `callsApi` is not imported yet in the file view I saw, I will use axios directly for now to match the file's style,
+            // OR I can add the import. Adding the import is cleaner.
+            // I'll assume I'll add the import in the next step.
+            // For now, let's use the code that assumes `callsApi` is available or implement it inline.
+            // Let's implement inline to reduce dependencies on imports I haven't fixed yet, 
+            // but actually, using `callsApi` is better.
+
+            // Inline implementation matching APIcalls.js logic:
+            const promises = selectedCalls.map(id => axios.post(`${baseURL}/api/admin/calls/${id}/terminate/`));
+            await Promise.allSettled(promises);
+
+            // Refresh calls
+            fetchCalls();
+            setSelectedCalls([]);
+            alert('Selected calls have been processed for termination.');
+        } catch (error) {
+            console.error('Error terminating calls:', error);
+            alert('Failed to terminate some calls.');
+        } finally {
+            setTerminating(false);
+        }
+    };
 
     // --- Brand Colors ---
     const brandColors = {
@@ -240,6 +297,7 @@ const CallList = () => {
             case 'in_progress': return { ...base, color: '#2980b9', backgroundColor: '#eaf2f8' };
             case 'canceled': return { ...base, color: '#f39c12', backgroundColor: '#fef5e7' };
             case 'busy': return { ...base, color: '#8e44ad', backgroundColor: '#f4ecf7' };
+            case 'no_answer': return { ...base, color: '#8e44ad', backgroundColor: '#f4ecf7' };
             case 'voicemail_detected': return { ...base, color: '#f1c40f', backgroundColor: '#fef9e7' };
             default: return { ...base, color: '#7f8c8d', backgroundColor: '#f4f6f7' };
         }
@@ -289,7 +347,7 @@ const CallList = () => {
                         <div style={styles.filterGroup}>
                             <label style={styles.filterLabel}>Status</label>
                             <select style={styles.filterSelect} name="status" value={filters.status} onChange={handleFilterChange}>
-                                <option value="">All</option><option value="in_progress">In Progress</option><option value="completed">Completed</option><option value="failed">Failed</option><option value="canceled">Canceled</option><option value="busy">Busy</option>
+                                <option value="">All</option><option value="in_progress">In Progress</option><option value="completed">Completed</option><option value="failed">Failed</option><option value="canceled">Canceled</option><option value="busy">Busy</option><option value="no_answer">No Answer</option>
                             </select>
                         </div>
                         <div style={styles.filterGroup}>
@@ -305,16 +363,36 @@ const CallList = () => {
             <div style={styles.tableContainer}>
                 <div style={styles.tableHeader}>
                     <div style={styles.resultsCount}>{loading ? ' ' : `${totalResults} results found`}</div>
-                    <button style={styles.exportButton} onClick={handleExportExcel} disabled={exporting || calls.length === 0}>
-                        {exporting ? <Loader2 size={16} style={styles.spinner} /> : <Download size={16} />}
-                        {exporting ? 'Exporting...' : 'Export to Excel'}
-                    </button>
+                    <div style={{ display: 'flex', gap: '10px' }}>
+                        {selectedCalls.length > 0 && (
+                            <button
+                                style={{ ...styles.exportButton, backgroundColor: '#c0392b', border: 'none' }}
+                                onClick={handleTerminateSelected}
+                                disabled={terminating}
+                            >
+                                {terminating ? <Loader2 size={16} style={styles.spinner} /> : <PhoneOutgoing size={16} style={{ transform: 'rotate(135deg)' }} />}
+                                {terminating ? 'Terminating...' : `Terminate Selected (${selectedCalls.length})`}
+                            </button>
+                        )}
+                        <button style={styles.exportButton} onClick={handleExportExcel} disabled={exporting || calls.length === 0}>
+                            {exporting ? <Loader2 size={16} style={styles.spinner} /> : <Download size={16} />}
+                            {exporting ? 'Exporting...' : 'Export to Excel'}
+                        </button>
+                    </div>
                 </div>
                 {loading ? (
                     <div style={styles.loader}><Loader2 size={24} style={styles.spinner} /> Loading calls...</div>
                 ) : calls.length > 0 ? (
                     <table style={styles.table}>
                         <thead><tr>
+                            <th style={{ ...styles.tableTh, width: '40px' }}>
+                                <input
+                                    type="checkbox"
+                                    onChange={handleSelectAll}
+                                    checked={calls.length > 0 && selectedCalls.length === calls.length}
+                                    style={{ cursor: 'pointer', width: '16px', height: '16px' }}
+                                />
+                            </th>
                             <th style={styles.tableTh}>Phone Number</th><th style={styles.tableTh}>Direction</th>
                             <th style={styles.tableTh}>Status</th><th style={styles.tableTh}>Duration</th>
                             <th style={styles.tableTh}>
@@ -327,6 +405,14 @@ const CallList = () => {
                         </tr></thead>
                         <tbody>{calls.map(call => (
                             <tr key={call.id} style={styles.tableRow}>
+                                <td style={styles.tableTd}>
+                                    <input
+                                        type="checkbox"
+                                        checked={selectedCalls.includes(call.id)}
+                                        onChange={() => handleSelectCall(call.id)}
+                                        style={{ cursor: 'pointer', width: '16px', height: '16px' }}
+                                    />
+                                </td>
                                 <td style={styles.tableTd}>{call.phone_number}</td>
                                 <td style={styles.tableTd}>
                                     <div style={styles.iconTd}>

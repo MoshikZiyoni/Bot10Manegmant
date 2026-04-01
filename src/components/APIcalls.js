@@ -60,6 +60,14 @@ export const callsApi = {
     return response.data;
   },
 
+  terminateMultipleCalls: async (callIds) => {
+    console.log(`Terminating ${callIds.length} calls:`, callIds);
+    // Execute all termination requests concurrently
+    const promises = callIds.map(id => api.post(`/api/admin/calls/${id}/terminate/`));
+    const results = await Promise.allSettled(promises);
+    return results;
+  },
+
   getAllUsers: async () => {
     try {
       const response = await api.get('/api/admin/users/');
