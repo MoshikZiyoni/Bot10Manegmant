@@ -5,7 +5,7 @@ import { ShieldAlert } from "lucide-react";
 
 const ProtectedAdminRoute = ({ children }) => {
     const { isAuthenticated, isLoading, user } = useAuth0();
-    const ADMIN_EMAIL = "moshiktm1994@gmail.com";
+    const ADMIN_EMAILS = ["moshiktm1994@gmail.com", "erantzipel@gmail.com"];
 
     if (isLoading) {
         return <div className="loading">Verifying admin privileges...</div>;
@@ -15,7 +15,7 @@ const ProtectedAdminRoute = ({ children }) => {
         return <Navigate to="/login" />;
     }
 
-    if (user?.email !== ADMIN_EMAIL) {
+    if (user?.email !== ADMIN_EMAILS[0] && user?.email !== ADMIN_EMAILS[1]) {
         return (
             <div style={{
                 height: '100vh',
