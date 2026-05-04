@@ -20,7 +20,7 @@ function App() {
   const AdminDashboard = lazy(() => import('./components/AdminDashboard'));
   const ALLOWED_EMAILS = (process.env.REACT_APP_ALLOWED_EMAILS || "")
     .split(",")
-    .map(email => email.trim())
+    .map(email => email.trim().toLowerCase())
     .filter(Boolean);
 
   useEffect(() => {
@@ -32,7 +32,7 @@ function App() {
       !isLoading &&
       isAuthenticated &&
       user &&
-      !ALLOWED_EMAILS.includes(user.email)
+      !ALLOWED_EMAILS.includes((user.email || "").toLowerCase())
     ) {
       logout({ returnTo: window.location.origin });
     }
@@ -42,7 +42,7 @@ function App() {
   if (
     isAuthenticated &&
     user &&
-    !ALLOWED_EMAILS.includes(user.email)
+    !ALLOWED_EMAILS.includes((user.email || "").toLowerCase())
   ) {
     alert("Not Authorized -- Your email is not allowed to access this application.")
   }
