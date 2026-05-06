@@ -151,6 +151,8 @@ const Dashboard = () => {
       case 'in_progress': return { ...base, color: '#2980b9', backgroundColor: '#eaf2f8' };
       case 'canceled': return { ...base, color: '#f39c12', backgroundColor: '#fef5e7' };
       case 'busy': return { ...base, color: '#8e44ad', backgroundColor: '#f4ecf7' };
+      case 'no_answer': return { ...base, color: '#8e44ad', backgroundColor: '#f4ecf7' };
+      case 'voicemail_detected': return { ...base, color: '#f1c40f', backgroundColor: '#fef9e7' };
       default: return { ...base, color: '#7f8c8d', backgroundColor: '#f4f6f7' };
     }
   };

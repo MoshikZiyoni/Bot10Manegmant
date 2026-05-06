@@ -347,7 +347,7 @@ const CallList = () => {
                         <div style={styles.filterGroup}>
                             <label style={styles.filterLabel}>Status</label>
                             <select style={styles.filterSelect} name="status" value={filters.status} onChange={handleFilterChange}>
-                                <option value="">All</option><option value="in_progress">In Progress</option><option value="completed">Completed</option><option value="failed">Failed</option><option value="canceled">Canceled</option><option value="busy">Busy</option><option value="no_answer">No Answer</option>
+                                <option value="">All</option><option value="in_progress">In Progress</option><option value="completed">Completed</option><option value="failed">Failed</option><option value="canceled">Canceled</option><option value="busy">Busy</option><option value="no_answer">No Answer</option><option value="voicemail_detected">Voice Mail</option>
                             </select>
                         </div>
                         <div style={styles.filterGroup}>
