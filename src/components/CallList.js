@@ -6,25 +6,74 @@ import axios from 'axios';
 import { Link } from 'react-router-dom';
 
 const CallList = () => {
+    const shouldRestore = sessionStorage.getItem('callList_shouldRestore') === 'true';
+
     const [calls, setCalls] = useState([]);
     const [loading, setLoading] = useState(true);
-    const [page, setPage] = useState(1);
+    const [page, setPage] = useState(() => {
+        if (shouldRestore) {
+            return parseInt(sessionStorage.getItem('callList_page') || '1', 10);
+        }
+        return 1;
+    });
     const [totalPages, setTotalPages] = useState(1);
     const [totalResults, setTotalResults] = useState(0);
     const [customDaysInput, setCustomDaysInput] = useState('');
     const customDaysTimeout = useRef();
     const [exporting, setExporting] = useState(false);
     const baseURL = process.env.REACT_APP_API_URL || 'http://localhost:8000';
-    const [filters, setFilters] = useState({
-        direction: '',
-        status: '',
-        search: '',
-        has_offer: '',
-        created_within_days: ''
+    const [filters, setFilters] = useState(() => {
+        if (shouldRestore) {
+            try {
+                const storedFilters = sessionStorage.getItem('callList_filters');
+                if (storedFilters) {
+                    return JSON.parse(storedFilters);
+                }
+            } catch (e) {
+                console.error('Error parsing stored filters:', e);
+            }
+        }
+        return {
+            direction: '',
+            status: '',
+            search: '',
+            has_offer: '',
+            created_within_days: ''
+        };
     });
-    const [showFilters, setShowFilters] = useState(false);
-    // New state for sorting 'created_at'
-    const [sortOrder, setSortOrder] = useState('desc'); // 'asc', 'desc', or '' for no sort
+    const [showFilters, setShowFilters] = useState(() => {
+        if (shouldRestore) {
+            try {
+                const storedFilters = JSON.parse(sessionStorage.getItem('callList_filters') || '{}');
+                return Object.values(storedFilters).some(v => v !== '');
+            } catch (e) {
+                return false;
+            }
+        }
+        return false;
+    });
+    const [sortOrder, setSortOrder] = useState(() => {
+        if (shouldRestore) {
+            return sessionStorage.getItem('callList_sortOrder') || 'desc';
+        }
+        return 'desc';
+    });
+    const [lastSelectedCallId, setLastSelectedCallId] = useState(() => {
+        if (shouldRestore) {
+            return sessionStorage.getItem('callList_lastSelectedCallId') || null;
+        }
+        return null;
+    });
+    const [viewedCallIds, setViewedCallIds] = useState(() => {
+        try {
+            const stored = localStorage.getItem('callList_viewedIds');
+            return stored ? JSON.parse(stored).map(String) : [];
+        } catch (e) {
+            return [];
+        }
+    });
+    const activeRowRef = useRef(null);
+
     const [selectedCalls, setSelectedCalls] = useState([]);
     const [terminating, setTerminating] = useState(false);
     // Import callsApi logic
@@ -83,6 +132,19 @@ const CallList = () => {
         }
     };
 
+    const handleCallClick = (callId) => {
+        const strId = String(callId);
+        sessionStorage.setItem('callList_shouldRestore', 'true');
+        sessionStorage.setItem('callList_lastSelectedCallId', strId);
+        setViewedCallIds(prev => {
+            const stringifiedPrev = prev.map(String);
+            if (stringifiedPrev.includes(strId)) return prev;
+            const updated = [...stringifiedPrev, strId];
+            localStorage.setItem('callList_viewedIds', JSON.stringify(updated));
+            return updated;
+        });
+    };
+
     // --- Brand Colors ---
     const brandColors = {
         yellow: '#f9bb2b',
@@ -103,6 +165,33 @@ const CallList = () => {
         }, 500);
         return () => clearTimeout(timeoutId);
     }, [filters]);
+
+    useEffect(() => {
+        // Reset the restore flag so a fresh visit starts over
+        sessionStorage.setItem('callList_shouldRestore', 'false');
+    }, []);
+
+    useEffect(() => {
+        sessionStorage.setItem('callList_page', page);
+    }, [page]);
+
+    useEffect(() => {
+        sessionStorage.setItem('callList_filters', JSON.stringify(filters));
+    }, [filters]);
+
+    useEffect(() => {
+        sessionStorage.setItem('callList_sortOrder', sortOrder);
+    }, [sortOrder]);
+
+    useEffect(() => {
+        if (!loading && calls.length > 0 && lastSelectedCallId) {
+            if (activeRowRef.current) {
+                setTimeout(() => {
+                    activeRowRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                }, 100);
+            }
+        }
+    }, [loading, calls, lastSelectedCallId]);
 
 
     const fetchCalls = async () => {
@@ -275,6 +364,7 @@ const CallList = () => {
         table: { width: '100%', borderCollapse: 'separate', borderSpacing: '0 10px' },
         tableTh: { padding: '12px 15px', textAlign: 'left', fontWeight: '600', fontSize: '0.85rem', color: brandColors.accentBlue, textTransform: 'uppercase', borderBottom: `2px solid #e0e0e0` },
         tableRow: { backgroundColor: '#fff', boxShadow: '0 2px 4px rgba(0,0,0,0.04)', transition: 'transform 0.2s' },
+        tableRowHighlighted: { backgroundColor: '#fffbeb', boxShadow: '0 4px 12px rgba(249, 187, 43, 0.25)', transition: 'transform 0.2s', transform: 'translateY(-2px)' },
         tableTd: { padding: '15px', border: 'none', borderBottom: '1px solid #f0f0f0' },
         iconTd: { display: 'flex', alignItems: 'center', gap: '10px' },
         statusBadge: { padding: '4px 10px', borderRadius: '12px', fontSize: '0.8rem', fontWeight: 'bold', textTransform: 'capitalize' },
@@ -403,29 +493,88 @@ const CallList = () => {
                             </th>
                             <th style={styles.tableTh}>Actions</th>
                         </tr></thead>
-                        <tbody>{calls.map(call => (
-                            <tr key={call.id} style={styles.tableRow}>
-                                <td style={styles.tableTd}>
-                                    <input
-                                        type="checkbox"
-                                        checked={selectedCalls.includes(call.id)}
-                                        onChange={() => handleSelectCall(call.id)}
-                                        style={{ cursor: 'pointer', width: '16px', height: '16px' }}
-                                    />
-                                </td>
-                                <td style={styles.tableTd}>{call.phone_number}</td>
-                                <td style={styles.tableTd}>
-                                    <div style={styles.iconTd}>
-                                        {call.direction === 'in' ? <PhoneIncoming size={18} color="#27ae60" /> : <PhoneOutgoing size={18} color="#2980b9" />}
-                                        {call.direction === 'in' ? 'Incoming' : 'Outgoing'}
-                                    </div>
-                                </td>
-                                <td style={styles.tableTd}><span style={getStatusStyle(call.status)}>{call.status.replace(/_/g, ' ')}</span></td>
-                                <td style={styles.tableTd}>{call.billable_minutes} min</td>
-                                <td style={styles.tableTd}>{call.formatted_created_at}</td>
-                                <td style={styles.tableTd}><Link to={`/calls/${call.id}`} style={styles.viewLink}>View Details</Link></td>
-                            </tr>
-                        ))}</tbody>
+                        <tbody>{calls.map(call => {
+                            const isLastSelected = String(call.id) === String(lastSelectedCallId);
+                            const isViewed = viewedCallIds.includes(String(call.id));
+                            return (
+                                <tr 
+                                    key={call.id} 
+                                    ref={isLastSelected ? activeRowRef : null}
+                                    style={isLastSelected ? styles.tableRowHighlighted : styles.tableRow}
+                                >
+                                    <td style={{
+                                        ...styles.tableTd,
+                                        ...(isLastSelected ? { borderLeft: `4px solid ${brandColors.yellow}` } : {})
+                                    }}>
+                                        <input
+                                            type="checkbox"
+                                            checked={selectedCalls.includes(call.id)}
+                                            onChange={() => handleSelectCall(call.id)}
+                                            style={{ cursor: 'pointer', width: '16px', height: '16px' }}
+                                        />
+                                    </td>
+                                    <td style={{
+                                        ...styles.tableTd,
+                                        fontWeight: isViewed ? 'normal' : '600',
+                                        color: isViewed ? '#7f8c8d' : brandColors.darkBlue
+                                    }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                            {!isViewed && (
+                                                <span 
+                                                    style={{
+                                                        width: '8px',
+                                                        height: '8px',
+                                                        borderRadius: '50%',
+                                                        backgroundColor: brandColors.accentBlue,
+                                                        display: 'inline-block'
+                                                    }}
+                                                    title="New call"
+                                                />
+                                            )}
+                                            {call.phone_number}
+                                        </div>
+                                    </td>
+                                    <td style={{
+                                        ...styles.tableTd,
+                                        color: isViewed ? '#7f8c8d' : 'inherit'
+                                    }}>
+                                        <div style={styles.iconTd}>
+                                            {call.direction === 'in' ? (
+                                                <PhoneIncoming size={18} color={isViewed ? '#95a5a6' : '#27ae60'} />
+                                            ) : (
+                                                <PhoneOutgoing size={18} color={isViewed ? '#95a5a6' : '#2980b9'} />
+                                            )}
+                                            {call.direction === 'in' ? 'Incoming' : 'Outgoing'}
+                                        </div>
+                                    </td>
+                                    <td style={{
+                                        ...styles.tableTd,
+                                        opacity: isViewed ? 0.75 : 1
+                                    }}>
+                                        <span style={getStatusStyle(call.status)}>
+                                            {call.status.replace(/_/g, ' ')}
+                                        </span>
+                                    </td>
+                                    <td style={{
+                                        ...styles.tableTd,
+                                        color: isViewed ? '#7f8c8d' : 'inherit'
+                                    }}>{call.billable_minutes} min</td>
+                                    <td style={{
+                                        ...styles.tableTd,
+                                        color: isViewed ? '#7f8c8d' : 'inherit'
+                                    }}>{call.formatted_created_at}</td>
+                                    <td style={styles.tableTd}>
+                                        <Link 
+                                            to={`/calls/${call.id}`} 
+                                            onClick={() => handleCallClick(call.id)} 
+                                            style={styles.viewLink}
+                                        >
+                                            View Details
+                                        </Link>
+                                    </td>
+                                </tr>
+                            );
+                        })}</tbody>
                     </table>
                 ) : (
                     <div style={styles.noResults}>No calls found matching your criteria.</div>

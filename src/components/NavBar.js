@@ -55,7 +55,10 @@ const NavBar = () => {
             <Link to="/" onClick={() => setMenuOpen(false)}>Dashboard</Link>
           </li>
           <li>
-            <Link to="/calls" onClick={() => setMenuOpen(false)}>Call History</Link>
+            <Link to="/calls" onClick={() => {
+              setMenuOpen(false);
+              sessionStorage.setItem('callList_shouldRestore', 'false');
+            }}>Call History</Link>
           </li>
           <li>
             <Link to="/calls/new" onClick={() => setMenuOpen(false)}>New Call</Link>

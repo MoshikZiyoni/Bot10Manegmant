@@ -37,6 +37,22 @@ function CallDetail() {
     fetchCallDetails();
   }, [baseURL, id]);
 
+  useEffect(() => {
+    if (id) {
+      try {
+        const stored = localStorage.getItem('callList_viewedIds');
+        const viewedIds = stored ? JSON.parse(stored) : [];
+        const strId = String(id);
+        if (!viewedIds.map(String).includes(strId)) {
+          viewedIds.push(strId);
+          localStorage.setItem('callList_viewedIds', JSON.stringify(viewedIds));
+        }
+      } catch (e) {
+        console.error('Error saving viewed call ID:', e);
+      }
+    }
+  }, [id]);
+
   if (loading) {
     return <div className="loading">Loading call details...</div>;
   }
