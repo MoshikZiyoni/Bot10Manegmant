@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { 
   Search, Clock, Phone, TrendingUp, TrendingDown, Calendar, ArrowRightLeft, 
-  Download, Zap, BarChart2, ShieldCheck, DollarSign, Sliders, Layers 
+  Download, Sliders 
 } from 'lucide-react';
 import axios from 'axios';
 
@@ -15,35 +15,43 @@ const UsageReport = () => {
     const [multiplier, setMultiplier] = useState(1.5);
     const baseURL = process.env.REACT_APP_API_URL || '';
 
+    // Helper to format Date object to YYYY-MM-DD in local time
+    const formatDate = (date) => {
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
+    };
+
     // Quick presets
     const setThisMonth = () => {
         const now = new Date();
-        const firstDay = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
-        const today = now.toISOString().split('T')[0];
+        const firstDay = formatDate(new Date(now.getFullYear(), now.getMonth(), 1));
+        const today = formatDate(now);
         setStartDate(firstDay);
         setEndDate(today);
     };
 
     const setLastMonth = () => {
         const now = new Date();
-        const firstDayLastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1).toISOString().split('T')[0];
-        const lastDayLastMonth = new Date(now.getFullYear(), now.getMonth(), 0).toISOString().split('T')[0];
+        const firstDayLastMonth = formatDate(new Date(now.getFullYear(), now.getMonth() - 1, 1));
+        const lastDayLastMonth = formatDate(new Date(now.getFullYear(), now.getMonth(), 0));
         setStartDate(firstDayLastMonth);
         setEndDate(lastDayLastMonth);
     };
 
     const setLast30Days = () => {
         const now = new Date();
-        const today = now.toISOString().split('T')[0];
-        const thirtyDaysAgo = new Date(now.setDate(now.getDate() - 30)).toISOString().split('T')[0];
+        const today = formatDate(now);
+        const thirtyDaysAgo = formatDate(new Date(now.getFullYear(), now.getMonth(), now.getDate() - 30));
         setStartDate(thirtyDaysAgo);
         setEndDate(today);
     };
 
     const setLast90Days = () => {
         const now = new Date();
-        const today = now.toISOString().split('T')[0];
-        const ninetyDaysAgo = new Date(now.setDate(now.getDate() - 90)).toISOString().split('T')[0];
+        const today = formatDate(now);
+        const ninetyDaysAgo = formatDate(new Date(now.getFullYear(), now.getMonth(), now.getDate() - 90));
         setStartDate(ninetyDaysAgo);
         setEndDate(today);
     };
