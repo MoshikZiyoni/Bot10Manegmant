@@ -1,28 +1,47 @@
 import React, { useState } from 'react';
-import { Search, Clock, Phone } from 'lucide-react';
+import { Search, Clock, Phone, TrendingUp, TrendingDown, Calendar, ArrowRightLeft } from 'lucide-react';
 
 const UsageReport = () => {
     const [startDate, setStartDate] = useState('');
     const [endDate, setEndDate] = useState('');
-    const [identifier, setIdentifier] = useState(''); // The user's number to check
+    const [identifier, setIdentifier] = useState(''); // Phone number
     const [report, setReport] = useState(null);
     const [loading, setLoading] = useState(false);
     const [isHovered, setIsHovered] = useState(false);
     const [multiplier, setMultiplier] = useState(1.5);
     const baseURL = process.env.REACT_APP_API_URL || '';
 
+    // Quick presets
+    const setThisMonth = () => {
+        const now = new Date();
+        const firstDay = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
+        const today = now.toISOString().split('T')[0];
+        setStartDate(firstDay);
+        setEndDate(today);
+    };
+
+    const setLast30Days = () => {
+        const now = new Date();
+        const today = now.toISOString().split('T')[0];
+        const thirtyDaysAgo = new Date(now.setDate(now.getDate() - 30)).toISOString().split('T')[0];
+        setStartDate(thirtyDaysAgo);
+        setEndDate(today);
+    };
+
     const handleCheckUsage = async (e) => {
-        e.preventDefault();
+        if (e) e.preventDefault();
+        if (!identifier || !startDate || !endDate) return;
+
         setLoading(true);
         try {
             const response = await fetch(
-                `${baseURL}/api/usage-report/?start_date=${startDate}&end_date=${endDate}&identifier=${identifier}`
+                `${baseURL}/api/usage-report/?start_date=${startDate}&end_date=${endDate}&identifier=${encodeURIComponent(identifier)}`
             );
             const data = await response.json();
             if (response.ok) {
                 setReport(data);
             } else {
-                alert(data.error);
+                alert(data.error || 'נכשל בטעינת הנתונים');
             }
         } catch (error) {
             console.error("Error:", error);
@@ -33,39 +52,56 @@ const UsageReport = () => {
 
     const styles = {
         container: {
-            maxWidth: '700px',
-            margin: '3rem auto',
+            maxWidth: '900px',
+            margin: '2rem auto',
             padding: '2.5rem',
             backgroundColor: '#ffffff',
-            borderRadius: '20px',
-            boxShadow: '0 20px 60px rgba(0, 0, 0, 0.05)',
-            transition: 'all 0.3s ease',
-            fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, "Open Sans", "Helvetica Neue", sans-serif',
+            borderRadius: '24px',
+            boxShadow: '0 20px 60px rgba(0, 0, 0, 0.06)',
+            fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+            direction: 'rtl',
         },
         header: {
             display: 'flex',
             alignItems: 'center',
-            gap: '12px',
-            marginBottom: '2.5rem',
-            color: '#1a1a1a',
+            gap: '14px',
+            marginBottom: '2rem',
+            paddingBottom: '1rem',
+            borderBottom: '1px solid #f1f5f9'
         },
         title: {
-            fontSize: '1.75rem',
-            fontWeight: '700',
-            letterSpacing: '-0.5px',
+            fontSize: '1.8rem',
+            fontWeight: '800',
             margin: 0,
-            background: 'linear-gradient(135deg, #1a1a1a 0%, #4a4a4a 100%)',
+            background: 'linear-gradient(135deg, #1e293b 0%, #3b82f6 100%)',
             WebkitBackgroundClip: 'text',
             WebkitTextFillColor: 'transparent',
         },
-        icon: {
-            color: '#3b82f6',
+        presetBar: {
+            display: 'flex',
+            gap: '10px',
+            marginBottom: '1.5rem',
+            flexWrap: 'wrap'
+        },
+        presetBtn: {
+            padding: '8px 16px',
+            borderRadius: '10px',
+            border: '1px solid #e2e8f0',
+            backgroundColor: '#f8fafc',
+            color: '#334155',
+            fontSize: '0.88rem',
+            fontWeight: '600',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '6px',
+            transition: 'all 0.2s ease',
         },
         form: {
             display: 'flex',
             flexDirection: 'column',
             gap: '1.5rem',
-            marginBottom: '2.5rem',
+            marginBottom: '2rem',
         },
         inputGroup: {
             display: 'flex',
@@ -74,9 +110,8 @@ const UsageReport = () => {
         },
         label: {
             fontSize: '0.9rem',
-            fontWeight: '600',
-            color: '#4b5563',
-            marginLeft: '4px',
+            fontWeight: '700',
+            color: '#334155',
         },
         inputWrapper: {
             position: 'relative',
@@ -85,39 +120,21 @@ const UsageReport = () => {
         },
         inputIcon: {
             position: 'absolute',
-            left: '14px',
+            right: '14px',
             color: '#9ca3af',
             pointerEvents: 'none',
         },
         input: {
             width: '100%',
             padding: '14px 16px',
-            paddingLeft: '44px',
+            paddingRight: '44px',
             fontSize: '1rem',
             color: '#1f2937',
-            backgroundColor: '#f9fafb',
-            border: '2px solid #f3f4f6',
+            backgroundColor: '#f8fafc',
+            border: '2px solid #e2e8f0',
             borderRadius: '12px',
             outline: 'none',
-            transition: 'all 0.2s ease',
             boxSizing: 'border-box',
-        },
-        select: {
-            width: '100%',
-            padding: '14px 16px',
-            fontSize: '1rem',
-            color: '#1f2937',
-            backgroundColor: '#f9fafb',
-            border: '2px solid #f3f4f6',
-            borderRadius: '12px',
-            outline: 'none',
-            transition: 'all 0.2s ease',
-            boxSizing: 'border-box',
-            appearance: 'none',
-            backgroundImage: `url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e")`,
-            backgroundRepeat: 'no-repeat',
-            backgroundPosition: 'right 1rem center',
-            backgroundSize: '1em',
         },
         dateGrid: {
             display: 'grid',
@@ -129,11 +146,21 @@ const UsageReport = () => {
             padding: '14px 16px',
             fontSize: '1rem',
             color: '#1f2937',
-            backgroundColor: '#f9fafb',
-            border: '2px solid #f3f4f6',
+            backgroundColor: '#f8fafc',
+            border: '2px solid #e2e8f0',
             borderRadius: '12px',
             outline: 'none',
-            transition: 'all 0.2s ease',
+            boxSizing: 'border-box',
+        },
+        select: {
+            width: '100%',
+            padding: '14px 16px',
+            fontSize: '1rem',
+            color: '#1f2937',
+            backgroundColor: '#f8fafc',
+            border: '2px solid #e2e8f0',
+            borderRadius: '12px',
+            outline: 'none',
             boxSizing: 'border-box',
         },
         button: {
@@ -143,84 +170,119 @@ const UsageReport = () => {
             gap: '10px',
             width: '100%',
             padding: '16px',
-            backgroundColor: isHovered ? '#2563eb' : '#3b82f6',
+            backgroundColor: isHovered ? '#1d4ed8' : '#2563eb',
             color: 'white',
             border: 'none',
-            borderRadius: '12px',
-            fontSize: '1rem',
-            fontWeight: '600',
+            borderRadius: '14px',
+            fontSize: '1.05rem',
+            fontWeight: '700',
             cursor: loading ? 'not-allowed' : 'pointer',
             transition: 'all 0.3s ease',
-            opacity: loading ? 0.7 : 1,
-            marginTop: '1rem',
-            boxShadow: '0 4px 12px rgba(59, 130, 246, 0.3)',
+            boxShadow: '0 4px 14px rgba(37, 99, 235, 0.3)',
         },
-        resultsCard: {
+        comparisonSection: {
+            marginTop: '2rem',
             backgroundColor: '#f8fafc',
-            borderRadius: '16px',
+            borderRadius: '20px',
             padding: '2rem',
             border: '1px solid #e2e8f0',
-            animation: 'fadeIn 0.5s ease-out',
         },
-        resultsTitle: {
-            fontSize: '1.1rem',
-            fontWeight: '600',
-            color: '#334155',
+        comparisonHeader: {
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
             marginBottom: '1.5rem',
-            textAlign: 'center',
         },
-        statsGrid: {
-            display: 'grid',
-            gridTemplateColumns: '1fr 1fr 1fr', // Changed to 3 columns
-            gap: '1rem',
-        },
-        statBox: {
-            backgroundColor: 'white',
-            padding: '1.5rem',
-            borderRadius: '12px',
-            boxShadow: '0 2px 4px rgba(0, 0, 0, 0.02)',
-            border: '1px solid #f1f5f9',
-            textAlign: 'center',
-        },
-        statLabel: {
-            fontSize: '0.85rem',
-            color: '#64748b',
-            marginBottom: '0.5rem',
-            textTransform: 'uppercase',
-            letterSpacing: '0.5px',
-            fontWeight: '600',
-        },
-        statValue: (color) => ({
-            fontSize: '1.75rem', // Slightly smaller font for 3 columns
+        identifierBadge: {
+            fontSize: '1.1rem',
             fontWeight: '700',
-            color: color,
-            margin: 0,
+            color: '#1e293b',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
+        },
+        deltaBadge: (isPositive) => ({
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '4px',
+            padding: '6px 14px',
+            borderRadius: '20px',
+            fontSize: '0.9rem',
+            fontWeight: '700',
+            backgroundColor: isPositive ? '#dcfce7' : '#fee2e2',
+            color: isPositive ? '#166534' : '#991b1b',
         }),
-        period: {
-            marginTop: '1.5rem',
-            textAlign: 'center',
-            fontSize: '0.85rem',
-            color: '#94a3b8',
+        gridTwo: {
+            display: 'grid',
+            gridTemplateColumns: '1fr 1fr',
+            gap: '1.5rem',
+            marginBottom: '1.5rem',
+        },
+        periodCard: (isCurrent) => ({
+            backgroundColor: isCurrent ? '#ffffff' : '#f1f5f9',
+            padding: '1.5rem',
+            borderRadius: '16px',
+            border: isCurrent ? '2px solid #3b82f6' : '1px solid #cbd5e1',
+            boxShadow: isCurrent ? '0 10px 25px rgba(59, 130, 246, 0.1)' : 'none',
+        }),
+        cardTitle: {
+            fontSize: '1rem',
+            fontWeight: '700',
+            color: '#475569',
+            marginBottom: '0.25rem',
+        },
+        cardSub: {
+            fontSize: '0.82rem',
+            color: '#64748b',
+            marginBottom: '1.25rem',
+        },
+        metricRow: {
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            padding: '10px 0',
+            borderBottom: '1px dashed #e2e8f0',
+        },
+        metricLabel: {
+            fontSize: '0.9rem',
+            color: '#64748b',
+            fontWeight: '500',
+        },
+        metricValue: {
+            fontSize: '1.25rem',
+            fontWeight: '800',
+            color: '#0f172a',
         },
     };
 
     return (
         <div style={styles.container}>
             <div style={styles.header}>
-                <Clock size={32} style={styles.icon} />
-                <h2 style={styles.title}>Usage Calculator</h2>
+                <Clock size={32} color="#2563eb" />
+                <h2 style={styles.title}>מחשבון שימושים והשוואה חודשית</h2>
+            </div>
+
+            {/* Presets */}
+            <div style={styles.presetBar}>
+                <span style={{ fontSize: '0.88rem', color: '#64748b', fontWeight: '600', alignSelf: 'center' }}>בחירה מהירה:</span>
+                <button type="button" style={styles.presetBtn} onClick={setThisMonth}>
+                    <Calendar size={14} /> החודש הנוכחי
+                </button>
+                <button type="button" style={styles.presetBtn} onClick={setLast30Days}>
+                    <Calendar size={14} /> 30 ימים אחרונים
+                </button>
             </div>
 
             <form onSubmit={handleCheckUsage} style={styles.form}>
                 <div style={styles.inputGroup}>
-                    <label style={styles.label}>User Phone Number / ID</label>
+                    <label style={styles.label}>מספר טלפון / זיהוי משתמש</label>
                     <div style={styles.inputWrapper}>
                         <Phone size={20} style={styles.inputIcon} />
                         <input
                             type="text"
                             value={identifier}
                             onChange={(e) => setIdentifier(e.target.value)}
-                            placeholder="+97250..."
+                            placeholder="לדוגמה: +972501234567"
                             style={styles.input}
                             required
                         />
@@ -229,7 +291,7 @@ const UsageReport = () => {
 
                 <div style={styles.dateGrid}>
                     <div style={styles.inputGroup}>
-                        <label style={styles.label}>Start Date</label>
+                        <label style={styles.label}>תאריך התחלה</label>
                         <input
                             type="date"
                             value={startDate}
@@ -239,7 +301,7 @@ const UsageReport = () => {
                         />
                     </div>
                     <div style={styles.inputGroup}>
-                        <label style={styles.label}>End Date</label>
+                        <label style={styles.label}>תאריך סיום</label>
                         <input
                             type="date"
                             value={endDate}
@@ -251,16 +313,16 @@ const UsageReport = () => {
                 </div>
 
                 <div style={styles.inputGroup}>
-                    <label style={styles.label}>Price Multiplier (Rate)</label>
+                    <label style={styles.label}>מקדם מחיר לפי דקה (Rate Multiplier)</label>
                     <select
                         value={multiplier}
                         onChange={(e) => setMultiplier(parseFloat(e.target.value))}
                         style={styles.select}
                     >
-                        <option value={1.5}>1.5 (Standard)</option>
-                        <option value={1.3}>1.3 (Discounted)</option>
-                        <option value={1.0}>1.0 (Base Rate)</option>
-                        <option value={0.85}>0.85 (VIP)</option>
+                        <option value={1.5}>1.5 ש"ח לדקה (סטנדרט)</option>
+                        <option value={1.3}>1.3 ש"ח לדקה (מוזל)</option>
+                        <option value={1.0}>1.0 ש"ח לדקה (בסיס)</option>
+                        <option value={0.85}>0.85 ש"ח לדקה (VIP)</option>
                     </select>
                 </div>
 
@@ -271,32 +333,87 @@ const UsageReport = () => {
                     onMouseEnter={() => setIsHovered(true)}
                     onMouseLeave={() => setIsHovered(false)}
                 >
-                    {loading ? 'Calculating...' : <><Search size={20} /> Calculate Usage</>}
+                    {loading ? 'מחשב נתונים...' : <><Search size={20} /> חושב שימוש והשוואה חודשית</>}
                 </button>
             </form>
 
             {report && (
-                <div style={styles.resultsCard}>
-                    <h3 style={styles.resultsTitle}>Results for {report.identifier}</h3>
-                    <div style={styles.statsGrid}>
-                        <div style={styles.statBox}>
-                            <p style={styles.statLabel}>Total Minutes</p>
-                            <p style={styles.statValue('#2563eb')}>{report.usage.total_minutes}</p>
+                <div style={styles.comparisonSection}>
+                    <div style={styles.comparisonHeader}>
+                        <div style={styles.identifierBadge}>
+                            <ArrowRightLeft size={20} color="#2563eb" />
+                            דו"ח השוואתי עבור: {report.identifier}
                         </div>
-                        <div style={styles.statBox}>
-                            <p style={styles.statLabel}>Total Calls</p>
-                            <p style={styles.statValue('#9333ea')}>{report.usage.call_count}</p>
+                        {report.comparison && (
+                            <div style={styles.deltaBadge(report.comparison.minutes_change_pct >= 0)}>
+                                {report.comparison.minutes_change_pct >= 0 ? <TrendingUp size={16} /> : <TrendingDown size={16} />}
+                                {report.comparison.minutes_change_pct >= 0 ? '+' : ''}{report.comparison.minutes_change_pct}% בדקות שימוש
+                            </div>
+                        )}
+                    </div>
+
+                    <div style={styles.gridTwo}>
+                        {/* Current Period Card */}
+                        <div style={styles.periodCard(true)}>
+                            <div style={styles.cardTitle}>📅 התקופה הנבחרת (נוכחי)</div>
+                            <div style={styles.cardSub}>{report.period.start} עד {report.period.end}</div>
+
+                            <div style={styles.metricRow}>
+                                <span style={styles.metricLabel}>סה"כ דקות לחיוב</span>
+                                <span style={{ ...styles.metricValue, color: '#2563eb' }}>{report.usage.total_minutes} דק'</span>
+                            </div>
+
+                            <div style={styles.metricRow}>
+                                <span style={styles.metricLabel}>כמות שיחות</span>
+                                <span style={styles.metricValue}>{report.usage.call_count}</span>
+                            </div>
+
+                            <div style={{ ...styles.metricRow, borderBottom: 'none' }}>
+                                <span style={styles.metricLabel}>סה"כ לתשלום</span>
+                                <span style={{ ...styles.metricValue, color: '#16a34a' }}>
+                                    {(report.usage.total_minutes * multiplier).toFixed(2)} ש"ח
+                                </span>
+                            </div>
                         </div>
-                        <div style={styles.statBox}>
-                            <p style={styles.statLabel}>Total Price</p>
-                            <p style={styles.statValue('#10b981')}>
-                                {(report.usage.total_minutes * multiplier).toFixed(2)} ש"ח
-                            </p>
+
+                        {/* Previous Period Card */}
+                        <div style={styles.periodCard(false)}>
+                            <div style={styles.cardTitle}>⏪ התקופה הקודמת المקבילה</div>
+                            <div style={styles.cardSub}>{report.previous_period.start} עד {report.previous_period.end}</div>
+
+                            <div style={styles.metricRow}>
+                                <span style={styles.metricLabel}>סה"כ דקות לחיוב</span>
+                                <span style={{ ...styles.metricValue, color: '#64748b' }}>{report.previous_period.total_minutes} דק'</span>
+                            </div>
+
+                            <div style={styles.metricRow}>
+                                <span style={styles.metricLabel}>כמות שיחות</span>
+                                <span style={styles.metricValue}>{report.previous_period.call_count}</span>
+                            </div>
+
+                            <div style={{ ...styles.metricRow, borderBottom: 'none' }}>
+                                <span style={styles.metricLabel}>סה"כ לתשלום</span>
+                                <span style={{ ...styles.metricValue, color: '#475569' }}>
+                                    {(report.previous_period.total_minutes * multiplier).toFixed(2)} ש"ח
+                                </span>
+                            </div>
                         </div>
                     </div>
-                    <div style={styles.period}>
-                        Period: {report.period.start} to {report.period.end} (Rate: x{multiplier})
-                    </div>
+
+                    {/* Summary Footer */}
+                    {report.comparison && (
+                        <div style={{
+                            textAlign: 'center',
+                            fontSize: '0.92rem',
+                            color: '#475569',
+                            backgroundColor: '#ffffff',
+                            padding: '1rem',
+                            borderRadius: '12px',
+                            border: '1px solid #e2e8f0'
+                        }}>
+                            💡 <b>סיכום שינוי:</b> בתקופה הנוכחית נעשו {report.comparison.minutes_diff >= 0 ? `יותר ${report.comparison.minutes_diff}` : `פחות ${Math.abs(report.comparison.minutes_diff)}`} דקות ({report.comparison.calls_diff >= 0 ? `+${report.comparison.calls_diff}` : report.comparison.calls_diff} שיחות) בהשוואה לתקופה הקודמת.
+                        </div>
+                    )}
                 </div>
             )}
         </div>

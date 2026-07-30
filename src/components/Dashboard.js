@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 // The user's code uses Link, but in this environment, a standard <a> tag is used for navigation.
 // import { Link } from 'react-router-dom';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
-import { Phone, PhoneIncoming, PhoneOutgoing, Clock, BarChart2, Loader2 } from 'lucide-react';
+import { Phone, PhoneIncoming, PhoneOutgoing, Clock, BarChart2, Loader2, CheckCircle, TrendingUp, TrendingDown } from 'lucide-react';
 import axios from 'axios';
 import { Link } from 'react-router-dom';
 
@@ -40,7 +40,7 @@ const Dashboard = () => {
     statValue: { margin: '4px 0 0 0', fontSize: '1.75rem', fontWeight: 'bold', color: brandColors.darkBlue },
     statsGrid: {
       display: 'grid',
-      gridTemplateColumns: isMobile ? 'none' : 'repeat(auto-fit, minmax(220px, 1fr))',
+      gridTemplateColumns: isMobile ? 'none' : 'repeat(auto-fit, minmax(200px, 1fr))',
       gap: '1.5rem',
       marginBottom: '2.5rem'
     },
@@ -86,7 +86,8 @@ const Dashboard = () => {
           canceledCalls: data.canceledCalls || 0,
           averageDuration: data.averageDuration || 0,
           totalDuration: data.totalDuration || 0,
-          totalBillableMinutes: data.totalBillableMinutes || 0
+          totalBillableMinutes: data.totalBillableMinutes || 0,
+          monthOverMonth: data.monthOverMonth || null,
         };
 
         setStats(processedStats);
@@ -96,7 +97,8 @@ const Dashboard = () => {
         // Set empty stats on error to prevent crashes
         setStats({
           totalCalls: 0, incomingCalls: 0, outgoingCalls: 0, completedCalls: 0, failedCalls: 0,
-          inProgressCalls: 0, busyCalls: 0, canceledCalls: 0, averageDuration: 0, totalDuration: 0, totalBillableMinutes: 0
+          inProgressCalls: 0, busyCalls: 0, canceledCalls: 0, averageDuration: 0, totalDuration: 0, totalBillableMinutes: 0,
+          monthOverMonth: null
         });
       } finally {
         setLoading(false);
@@ -121,7 +123,7 @@ const Dashboard = () => {
 
   const PIE_COLORS = [brandColors.accentBlue, brandColors.yellow];
 
-  const StatCard = ({ icon, title, value, color }) => (
+  const StatCard = ({ icon, title, value, subValue, color }) => (
     <div style={{ ...styles.statCard, borderLeft: `5px solid ${color}` }}>
       <div style={{ ...styles.statIcon, backgroundColor: color }}>
         {icon}
@@ -129,6 +131,7 @@ const Dashboard = () => {
       <div style={styles.statContent}>
         <h3 style={styles.statTitle}>{title}</h3>
         <p style={styles.statValue}>{value}</p>
+        {subValue && <span style={{ fontSize: '0.8rem', color: color, fontWeight: '600', marginTop: '4px' }}>{subValue}</span>}
       </div>
     </div>
   );
@@ -140,8 +143,6 @@ const Dashboard = () => {
       </div>
     );
   }
-
-
 
   const getStatusStyle = (status) => {
     const base = styles.statusBadge;
@@ -164,20 +165,75 @@ const Dashboard = () => {
         <h1 style={styles.title}>Dashboard</h1>
       </header>
 
-      <div className='stats-cards'>
+      <div className='stats-cards' style={styles.statsGrid}>
         <StatCard icon={<Phone size={24} />} title="Total Calls" value={stats.totalCalls} color={brandColors.darkBlue} />
         <StatCard icon={<PhoneIncoming size={24} />} title="Incoming Calls" value={stats.incomingCalls} color={brandColors.accentBlue} />
         <StatCard icon={<PhoneOutgoing size={24} />} title="Outgoing Calls" value={stats.outgoingCalls} color={brandColors.yellow} />
+        <StatCard 
+          icon={<CheckCircle size={24} />} 
+          title="אחוז מענה (Answer Rate)" 
+          value={stats.monthOverMonth ? `${stats.monthOverMonth.currentMonthAnswerRate}%` : 'N/A'} 
+          subValue={stats.monthOverMonth ? `${stats.monthOverMonth.answerRateChange >= 0 ? '+' : ''}${stats.monthOverMonth.answerRateChange}% לעומת חודש קודם` : ''}
+          color="#10b981" 
+        />
         <StatCard icon={<Clock size={24} />} title="Avg. Duration" value={`${(stats.averageDuration / 60).toFixed(1)} min`} color="#3498db" />
         <StatCard icon={<BarChart2 size={24} />} title="Total Duration" value={`${stats.totalBillableMinutes} min`} color="#27ae60" />
-
-        {/* <StatCard icon={<Loader2 size={24}/>} title="In Progress" value={stats.inProgressCalls} color={brandColors.accentBlue} /> Optional: show in progress */}
-        {/* <StatCard icon={<XCircle size={24}/>} title="Failed Calls" value={stats.failedCalls} color="#c0392b" /> Optional: show failed */}
-        {/* <StatCard icon={<CheckCircle size={24}/>} title="Completed Calls" value={stats.completedCalls} color="#27ae60" /> Optional: show completed */}
-        {/* <StatCard icon={<Phone size={24}/>} title="Busy Calls" value={stats.busyCalls} color={brandColors.busyPurple} /> Added */}
-        {/* <StatCard icon={<Phone size={24}/>} title="Canceled Calls" value={stats.canceledCalls} color={brandColors.canceledOrange} /> Added */}
-
       </div>
+
+      {/* Answer Rate Month-over-Month Comparison Widget */}
+      {stats.monthOverMonth && (
+        <div style={{
+          backgroundColor: '#fff',
+          borderRadius: '12px',
+          padding: '1.5rem',
+          boxShadow: '0 4px 12px rgba(0,0,0,0.05)',
+          marginBottom: '2.5rem',
+          borderRight: '5px solid #10b981',
+          direction: 'rtl'
+        }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
+            <h3 style={{ ...styles.chartTitle, margin: 0, fontSize: '1.15rem' }}>📊 אחוז מענה מול חודש קודם (Answer Rate MoM)</h3>
+            <span style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '4px',
+              padding: '6px 14px',
+              borderRadius: '20px',
+              fontSize: '0.88rem',
+              fontWeight: 'bold',
+              backgroundColor: stats.monthOverMonth.answerRateChange >= 0 ? '#dcfce7' : '#fee2e2',
+              color: stats.monthOverMonth.answerRateChange >= 0 ? '#166534' : '#991b1b',
+            }}>
+              {stats.monthOverMonth.answerRateChange >= 0 ? <TrendingUp size={16} /> : <TrendingDown size={16} />}
+              {stats.monthOverMonth.answerRateChange >= 0 ? '+' : ''}{stats.monthOverMonth.answerRateChange}% לעומת חודש שעבר
+            </span>
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: '1.5rem' }}>
+            {/* Current Month */}
+            <div style={{ backgroundColor: '#f0fdf4', padding: '1.25rem', borderRadius: '12px', border: '1px solid #bbf7d0' }}>
+              <div style={{ fontSize: '0.9rem', color: '#166534', fontWeight: '700' }}>החודש הנוכחי</div>
+              <div style={{ fontSize: '2rem', fontWeight: 'bold', color: '#15803d', margin: '4px 0' }}>
+                {stats.monthOverMonth.currentMonthAnswerRate}%
+              </div>
+              <div style={{ fontSize: '0.85rem', color: '#166534' }}>
+                נענו {stats.monthOverMonth.currentMonthCompleted} מתוך {stats.monthOverMonth.currentMonthTotal} שיחות
+              </div>
+            </div>
+
+            {/* Previous Month */}
+            <div style={{ backgroundColor: '#f8fafc', padding: '1.25rem', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
+              <div style={{ fontSize: '0.9rem', color: '#64748b', fontWeight: '700' }}>חודש שעבר</div>
+              <div style={{ fontSize: '2rem', fontWeight: 'bold', color: '#334155', margin: '4px 0' }}>
+                {stats.monthOverMonth.previousMonthAnswerRate}%
+              </div>
+              <div style={{ fontSize: '0.85rem', color: '#64748b' }}>
+                נענו {stats.monthOverMonth.previousMonthCompleted} מתוך {stats.monthOverMonth.previousMonthTotal} שיחות
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div style={styles.chartsContainer}>
         <div style={styles.chartWrapper}>

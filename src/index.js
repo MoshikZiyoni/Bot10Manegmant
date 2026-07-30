@@ -1,6 +1,14 @@
 import { createRoot } from 'react-dom/client';
 import App from './App';
 import { Auth0Provider } from '@auth0/auth0-react';
+import axios from 'axios';
+
+// Set global API key header for all outgoing requests to backend if defined
+if (process.env.REACT_APP_BACKEND_API_KEY) {
+  axios.defaults.headers.common['X-API-Key'] = process.env.REACT_APP_BACKEND_API_KEY;
+}
+
+
 
 
 const Auth0ProviderWithHistory = ({ children }) => {
