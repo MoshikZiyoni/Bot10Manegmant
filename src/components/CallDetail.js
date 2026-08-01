@@ -10,7 +10,9 @@ import {
   BotMessageSquare,
   XCircle,       // Import XCircle for 'לא'
   CheckCircle,   // Import CheckCircle for 'כן'
-  Volume2
+  Volume2,
+  ExternalLink,
+  FileText
 } from 'lucide-react';
 import axios from 'axios';
 import '../CallDetail.css';
@@ -170,7 +172,7 @@ function CallDetail() {
           <div className="call-summary-container" style={{ marginBottom: '1.5rem' }}>
             <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
               <Volume2 size={20} color="#1c7d95" />
-              Call Recording (Cloudflare R2)
+              Record
             </h3>
             <div className="call-summary-content">
               {r2AudioUrl ? (
@@ -180,10 +182,10 @@ function CallDetail() {
                     src={r2AudioUrl}
                     style={{ width: '100%', height: '44px', borderRadius: '8px' }}
                   />
-                  <div style={{ fontSize: '0.85rem', color: '#64748b', wordBreak: 'break-all' }}>
-                    <strong>Direct R2 Link:</strong>{' '}
-                    <a href={r2AudioUrl} target="_blank" rel="noopener noreferrer" style={{ color: '#1c7d95' }}>
-                      {r2AudioUrl}
+                  <div className="record-link-wrapper">
+                    <strong>Direct Link:</strong>{' '}
+                    <a href={r2AudioUrl} target="_blank" rel="noopener noreferrer" className="record-link-btn">
+                      <ExternalLink size={14} /> Click here
                     </a>
                   </div>
                 </div>

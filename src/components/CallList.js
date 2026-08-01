@@ -491,7 +491,7 @@ const CallList = () => {
                                     {sortOrder === 'desc' ? <ArrowDown size={14} /> : sortOrder === 'asc' ? <ArrowUp size={14} /> : <ChevronDown size={14} />}
                                 </span>
                             </th>
-                            <th style={styles.tableTh}>Recording</th>
+                            <th style={styles.tableTh}>Record</th>
                             <th style={styles.tableTh}>Actions</th>
                         </tr></thead>
                         <tbody>{calls.map(call => {
