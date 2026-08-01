@@ -491,11 +491,13 @@ const CallList = () => {
                                     {sortOrder === 'desc' ? <ArrowDown size={14} /> : sortOrder === 'asc' ? <ArrowUp size={14} /> : <ChevronDown size={14} />}
                                 </span>
                             </th>
+                            <th style={styles.tableTh}>Recording</th>
                             <th style={styles.tableTh}>Actions</th>
                         </tr></thead>
                         <tbody>{calls.map(call => {
                             const isLastSelected = String(call.id) === String(lastSelectedCallId);
                             const isViewed = viewedCallIds.includes(String(call.id));
+                            const r2AudioUrl = call.recording_url || (call.call_sid ? `https://pub-41c4983bb0df4ea290ddc778bb8d8081.r2.dev/recording_${String(call.call_sid).replace(/[:/\\]/g, '_')}.mp3` : null);
                             return (
                                 <tr 
                                     key={call.id} 
@@ -563,6 +565,18 @@ const CallList = () => {
                                         ...styles.tableTd,
                                         color: isViewed ? '#7f8c8d' : 'inherit'
                                     }}>{call.formatted_created_at}</td>
+                                    <td style={styles.tableTd}>
+                                        {r2AudioUrl ? (
+                                            <audio
+                                                controls
+                                                preload="none"
+                                                src={r2AudioUrl}
+                                                style={{ height: '32px', maxWidth: '210px', borderRadius: '20px' }}
+                                            />
+                                        ) : (
+                                            <span style={{ fontSize: '0.85rem', color: '#95a5a6' }}>N/A</span>
+                                        )}
+                                    </td>
                                     <td style={styles.tableTd}>
                                         <Link 
                                             to={`/calls/${call.id}`} 

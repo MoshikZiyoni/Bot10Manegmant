@@ -9,7 +9,8 @@ import {
   User,
   BotMessageSquare,
   XCircle,       // Import XCircle for 'לא'
-  CheckCircle    // Import CheckCircle for 'כן'
+  CheckCircle,   // Import CheckCircle for 'כן'
+  Volume2
 } from 'lucide-react';
 import axios from 'axios';
 import '../CallDetail.css';
@@ -162,6 +163,37 @@ function CallDetail() {
           </div>
         </div>
       </div>
+
+      {(() => {
+        const r2AudioUrl = call.recording_url || (call.call_sid ? `https://pub-41c4983bb0df4ea290ddc778bb8d8081.r2.dev/recording_${String(call.call_sid).replace(/[:/\\]/g, '_')}.mp3` : null);
+        return (
+          <div className="call-summary-container" style={{ marginBottom: '1.5rem' }}>
+            <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <Volume2 size={20} color="#1c7d95" />
+              Call Recording (Cloudflare R2)
+            </h3>
+            <div className="call-summary-content">
+              {r2AudioUrl ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                  <audio
+                    controls
+                    src={r2AudioUrl}
+                    style={{ width: '100%', height: '44px', borderRadius: '8px' }}
+                  />
+                  <div style={{ fontSize: '0.85rem', color: '#64748b', wordBreak: 'break-all' }}>
+                    <strong>Direct R2 Link:</strong>{' '}
+                    <a href={r2AudioUrl} target="_blank" rel="noopener noreferrer" style={{ color: '#1c7d95' }}>
+                      {r2AudioUrl}
+                    </a>
+                  </div>
+                </div>
+              ) : (
+                <p className="no-summary">No recording URL available for this call.</p>
+              )}
+            </div>
+          </div>
+        );
+      })()}
 
       <div className="call-summary-container">
         <h3>Summary</h3>
