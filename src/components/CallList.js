@@ -6,15 +6,10 @@ import axios from 'axios';
 import { Link } from 'react-router-dom';
 
 const CallList = () => {
-    const shouldRestore = sessionStorage.getItem('callList_shouldRestore') === 'true';
-
     const [calls, setCalls] = useState([]);
     const [loading, setLoading] = useState(true);
     const [page, setPage] = useState(() => {
-        if (shouldRestore) {
-            return parseInt(sessionStorage.getItem('callList_page') || '1', 10);
-        }
-        return 1;
+        return parseInt(sessionStorage.getItem('callList_page') || '1', 10);
     });
     const [totalPages, setTotalPages] = useState(1);
     const [totalResults, setTotalResults] = useState(0);
@@ -23,15 +18,13 @@ const CallList = () => {
     const [exporting, setExporting] = useState(false);
     const baseURL = process.env.REACT_APP_API_URL || 'http://localhost:8000';
     const [filters, setFilters] = useState(() => {
-        if (shouldRestore) {
-            try {
-                const storedFilters = sessionStorage.getItem('callList_filters');
-                if (storedFilters) {
-                    return JSON.parse(storedFilters);
-                }
-            } catch (e) {
-                console.error('Error parsing stored filters:', e);
+        try {
+            const storedFilters = sessionStorage.getItem('callList_filters');
+            if (storedFilters) {
+                return JSON.parse(storedFilters);
             }
+        } catch (e) {
+            console.error('Error parsing stored filters:', e);
         }
         return {
             direction: '',
@@ -42,27 +35,18 @@ const CallList = () => {
         };
     });
     const [showFilters, setShowFilters] = useState(() => {
-        if (shouldRestore) {
-            try {
-                const storedFilters = JSON.parse(sessionStorage.getItem('callList_filters') || '{}');
-                return Object.values(storedFilters).some(v => v !== '');
-            } catch (e) {
-                return false;
-            }
+        try {
+            const storedFilters = JSON.parse(sessionStorage.getItem('callList_filters') || '{}');
+            return Object.values(storedFilters).some(v => v !== '');
+        } catch (e) {
+            return false;
         }
-        return false;
     });
     const [sortOrder, setSortOrder] = useState(() => {
-        if (shouldRestore) {
-            return sessionStorage.getItem('callList_sortOrder') || 'desc';
-        }
-        return 'desc';
+        return sessionStorage.getItem('callList_sortOrder') || 'desc';
     });
     const [lastSelectedCallId, setLastSelectedCallId] = useState(() => {
-        if (shouldRestore) {
-            return sessionStorage.getItem('callList_lastSelectedCallId') || null;
-        }
-        return null;
+        return sessionStorage.getItem('callList_lastSelectedCallId') || null;
     });
     const [viewedCallIds, setViewedCallIds] = useState(() => {
         try {
@@ -155,21 +139,14 @@ const CallList = () => {
 
     useEffect(() => {
         fetchCalls();
-    }, [page, filters.direction, filters.status, filters.has_offer, filters.created_within_days, sortOrder]); // Add sortOrder to dependencies
+    }, [page, filters.direction, filters.status, filters.created_within_days, sortOrder]); // Add sortOrder to dependencies
 
     useEffect(() => {
         const timeoutId = setTimeout(() => {
-            if (Object.values(filters).some(value => value !== '')) {
-                fetchCalls();
-            }
+            fetchCalls();
         }, 500);
         return () => clearTimeout(timeoutId);
-    }, [filters]);
-
-    useEffect(() => {
-        // Reset the restore flag so a fresh visit starts over
-        sessionStorage.setItem('callList_shouldRestore', 'false');
-    }, []);
+    }, [filters.search, filters.has_offer]);
 
     useEffect(() => {
         sessionStorage.setItem('callList_page', page);
@@ -236,9 +213,23 @@ const CallList = () => {
     const handleFilterChange = (e) => {
         const { name, value } = e.target;
         setFilters(prev => ({ ...prev, [name]: value }));
-        if (name !== 'search') {
+        if (name !== 'search' && name !== 'has_offer') {
             setPage(1);
         }
+    };
+
+    const handleClearFilters = () => {
+        const emptyFilters = {
+            direction: '',
+            status: '',
+            search: '',
+            has_offer: '',
+            created_within_days: ''
+        };
+        setFilters(emptyFilters);
+        setPage(1);
+        sessionStorage.removeItem('callList_filters');
+        sessionStorage.setItem('callList_page', '1');
     };
 
     const handleCustomDaysChange = (e) => {
@@ -413,6 +404,14 @@ const CallList = () => {
                     <button style={styles.filterButton} onClick={() => setShowFilters(!showFilters)}>
                         <Filter size={16} /> Filters <ChevronDown size={16} style={{ transform: showFilters ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }} />
                     </button>
+                    {Object.values(filters).some(v => v !== '') && (
+                        <button 
+                            style={{ ...styles.filterButton, backgroundColor: '#e74c3c', color: '#fff', border: 'none' }} 
+                            onClick={handleClearFilters}
+                        >
+                            Clear Filters
+                        </button>
+                    )}
                 </div>
                 {showFilters && (
                     <div style={styles.filtersPanel}>
@@ -441,10 +440,15 @@ const CallList = () => {
                             </select>
                         </div>
                         <div style={styles.filterGroup}>
-                            <label style={styles.filterLabel}>Has Offer</label>
-                            <select style={styles.filterSelect} name="has_offer" value={filters.has_offer} onChange={handleFilterChange}>
-                                <option value="">All</option><option value="true">Yes</option><option value="false">No</option>
-                            </select>
+                            <label style={styles.filterLabel}>Keyword / Offer</label>
+                            <input
+                                type="text"
+                                style={styles.filterSelect}
+                                name="has_offer"
+                                placeholder="e.g. טיולים, הצעה..."
+                                value={filters.has_offer || ''}
+                                onChange={handleFilterChange}
+                            />
                         </div>
                     </div>
                 )}

@@ -22,7 +22,7 @@ export const callsApi = {
     if (filters.direction) params.append('direction', filters.direction);
     if (filters.status) params.append('status', filters.status);
     if (filters.search) params.append('search', filters.search);
-    if (typeof filters.has_offer !== 'undefined') params.append('has_offer', filters.has_offer ? 'true' : ''); // <-- Add this line
+    if (filters.has_offer) params.append('has_offer', filters.has_offer);
 
 
     const response = await api.get(`/api/calls/?${params.toString()}`);
