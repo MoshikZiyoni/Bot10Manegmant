@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import {
   PhoneIncoming,
@@ -12,7 +12,8 @@ import {
   CheckCircle,   // Import CheckCircle for 'כן'
   Volume2,
   ExternalLink,
-  FileText
+  Play,
+  ArrowDown
 } from 'lucide-react';
 import axios from 'axios';
 import '../CallDetail.css';
@@ -23,6 +24,15 @@ function CallDetail() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const baseURL = process.env.REACT_APP_API_URL || '';
+
+  // Audio Playback & Auto-Scroll States
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [autoScroll, setAutoScroll] = useState(true);
+  const [activeTurnIndex, setActiveTurnIndex] = useState(-1);
+
+  const audioRef = useRef(null);
+  const timelineRef = useRef(null);
+  const turnRefs = useRef({});
 
   useEffect(() => {
     const fetchCallDetails = async () => {
@@ -56,6 +66,95 @@ function CallDetail() {
     }
   }, [id]);
 
+  // Memoized & normalized conversation turns with robust offset calculation
+  const turns = useMemo(() => {
+    if (!call?.conversation || !Array.isArray(call.conversation)) return [];
+    let firstBaseSec = null;
+
+    // Filter out turns with empty text
+    const validTurns = call.conversation.filter(
+      t => t && typeof t.text === 'string' && t.text.trim().length > 0
+    );
+
+    return validTurns.map((turn) => {
+      let offset = null;
+      if (typeof turn.offset_sec === 'number') {
+        offset = turn.offset_sec;
+      } else if (turn.offset_sec !== undefined && turn.offset_sec !== null && turn.offset_sec !== '') {
+        const parsed = parseFloat(turn.offset_sec);
+        if (!isNaN(parsed)) offset = parsed;
+      }
+
+      const strTs = String(turn.timestamp_sec || '').trim();
+      if (offset === null) {
+        if (strTs && !isNaN(strTs)) {
+          offset = parseFloat(strTs);
+        } else if (strTs.includes(':')) {
+          const parts = strTs.split(':').map(Number);
+          if (parts.length === 2 && !isNaN(parts[0]) && !isNaN(parts[1])) {
+            offset = parts[0] * 60 + parts[1];
+          } else if (parts.length === 3 && !isNaN(parts[0]) && !isNaN(parts[1]) && !isNaN(parts[2])) {
+            const tot = parts[0] * 3600 + parts[1] * 60 + parts[2];
+            if (firstBaseSec === null) firstBaseSec = tot;
+            let diff = tot - firstBaseSec;
+            if (diff < 0) diff += 86400;
+            offset = diff;
+          }
+        }
+      }
+      if (offset === null || isNaN(offset)) offset = 0;
+
+      const mins = Math.floor(offset / 60);
+      const secs = Math.floor(offset % 60);
+      const displayOffset = `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+
+      return {
+        ...turn,
+        offset_sec: offset,
+        display_offset: turn.display_offset || displayOffset
+      };
+    });
+  }, [call?.conversation]);
+
+  // Auto-scroll to active turn when it changes and autoScroll is enabled
+  useEffect(() => {
+    if (!autoScroll || activeTurnIndex < 0) return;
+    const el = turnRefs.current[activeTurnIndex];
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+  }, [activeTurnIndex, autoScroll]);
+
+  // Jump to specific timestamp and start playback
+  const handleSeekToTurn = (offset, index) => {
+    if (!audioRef.current) return;
+    const safeOffset = Math.max(0, offset || 0);
+    audioRef.current.currentTime = safeOffset;
+    audioRef.current.play().catch(e => console.warn('Audio play error:', e));
+    setActiveTurnIndex(index);
+    if (autoScroll && turnRefs.current[index]) {
+      turnRefs.current[index].scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+  };
+
+  // Handler for audio timeupdate
+  const handleTimeUpdate = (e) => {
+    const time = e.target.currentTime;
+
+    let curIdx = -1;
+    for (let i = 0; i < turns.length; i++) {
+      if (time >= turns[i].offset_sec) {
+        curIdx = i;
+      } else {
+        break;
+      }
+    }
+
+    if (curIdx !== activeTurnIndex) {
+      setActiveTurnIndex(curIdx);
+    }
+  };
+
   if (loading) {
     return <div className="loading">Loading call details...</div>;
   }
@@ -68,21 +167,14 @@ function CallDetail() {
     return <div className="not-found">Call not found</div>;
   }
 
-  const formatDuration = (seconds) => {
-    const minutes = Math.floor(seconds / 60);
-    const remainingSeconds = Math.floor(seconds % 60);
-    return `${minutes}m ${remainingSeconds}s`;
-  };
 
 
   // Function to determine which icon to show
   const renderSummaryIcon = (summaryText) => {
-    // 1. Check if summaryText is NOT a string, or if it's an empty string.
     if (typeof summaryText !== 'string' || summaryText.trim() === '') {
-      return null; // If not a string or empty, stop here.
+      return null;
     }
 
-    // 2. Now it's safe to use .toLowerCase()
     const lowerCaseSummary = summaryText.toLowerCase();
     const hasNo = lowerCaseSummary.includes("לא");
     const hasYes = lowerCaseSummary.includes("כן");
@@ -178,8 +270,16 @@ function CallDetail() {
               {r2AudioUrl ? (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                   <audio
+                    ref={audioRef}
                     controls
                     src={r2AudioUrl}
+                    onTimeUpdate={handleTimeUpdate}
+                    onPlay={() => setIsPlaying(true)}
+                    onPause={() => setIsPlaying(false)}
+                    onEnded={() => {
+                      setIsPlaying(false);
+                      setActiveTurnIndex(-1);
+                    }}
                     style={{ width: '100%', height: '44px', borderRadius: '8px' }}
                   />
                   <div className="record-link-wrapper">
@@ -201,7 +301,7 @@ function CallDetail() {
         <h3>Summary</h3>
         <div className="call-summary-content">
           {call.summary ? (
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end' }}> {/* Flex container for text and icon */}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end' }}>
               <p dir="rtl" style={{ margin: 0, flexGrow: 1, textAlign: 'right' }}>{call.summary}</p>
               {renderSummaryIcon(call.summary)}
             </div>
@@ -212,16 +312,39 @@ function CallDetail() {
       </div>
 
       <div className="conversation-container">
-        <h3>Conversation</h3>
-        {console.log(call.conversation)}
-        {call.conversation && call.conversation.length > 0 ? (
-          <div className="conversation-timeline">
-            {call.conversation.map((turn, index) => (
+        <div className="conversation-header-row">
+          <div className="conversation-title-wrap">
+            <h3 style={{ margin: 0 }}>Conversation</h3>
+            <span className="conversation-count-badge">
+              {turns.length} {turns.length === 1 ? 'message' : 'messages'}
+            </span>
+          </div>
 
+          <div className="conversation-controls">
+            <button
+              type="button"
+              className={`auto-scroll-btn ${autoScroll ? 'active' : ''}`}
+              onClick={() => setAutoScroll(prev => !prev)}
+              title={autoScroll ? 'הגלילה האוטומטית מופעלת - לחץ לביטול' : 'הגלילה האוטומטית מבוטלת - לחץ להפעלה'}
+            >
+              <ArrowDown size={15} className={`scroll-icon ${autoScroll ? 'animate-bounce-subtle' : ''}`} />
+              <span>גלילה אוטומטית: <strong>{autoScroll ? 'פעיל' : 'מבוטל'}</strong></span>
+              <span className={`toggle-pill ${autoScroll ? 'on' : 'off'}`}>
+                <span className="toggle-dot" />
+              </span>
+            </button>
+          </div>
+        </div>
 
+        {turns && turns.length > 0 ? (
+          <div className="conversation-timeline" ref={timelineRef}>
+            {turns.map((turn, index) => (
               <div
                 key={index}
-                className={`conversation-turn ${turn.is_ai ? 'ai-turn' : 'user-turn'}`}
+                ref={el => turnRefs.current[index] = el}
+                className={`conversation-turn ${turn.is_ai ? 'ai-turn' : 'user-turn'} clickable ${activeTurnIndex === index ? 'is-active' : ''}`}
+                onClick={() => handleSeekToTurn(turn.offset_sec, index)}
+                title={`לחץ לקפיצה בהקלטה ל-${turn.display_offset}`}
               >
                 <div className="turn-avatar">
                   {turn.is_ai ? (
@@ -233,11 +356,33 @@ function CallDetail() {
                 </div>
                 <div className="turn-content-bubble">
                   <p dir="rtl">{highlightText(turn.text)}</p>
-                  {typeof turn.timestamp_sec !== 'undefined' && (
-                    <div className="turn-timestamp" style={{ fontSize: '0.85rem', color: '#6c757d', marginTop: '6px', textAlign: 'right' }}>
-                      {(turn.timestamp_sec)}
-                    </div>
-                  )}
+                  <div className="turn-footer">
+                    <button
+                      type="button"
+                      className="turn-play-badge"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleSeekToTurn(turn.offset_sec, index);
+                      }}
+                      title="השמע נקודה זו בהקלטה"
+                    >
+                      {activeTurnIndex === index && isPlaying ? (
+                        <span className="playing-bars">
+                          <span className="bar bar1"></span>
+                          <span className="bar bar2"></span>
+                          <span className="bar bar3"></span>
+                        </span>
+                      ) : (
+                        <Play size={11} fill="currentColor" />
+                      )}
+                      <span>{turn.display_offset}</span>
+                    </button>
+                    {turn.timestamp_sec && turn.timestamp_sec !== turn.display_offset && (
+                      <span className="turn-wall-clock" title="שעת שיחה">
+                        ({turn.timestamp_sec})
+                      </span>
+                    )}
+                  </div>
                 </div>
               </div>
             ))}
