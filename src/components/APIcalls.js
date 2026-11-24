@@ -122,6 +122,17 @@ export const callsApi = {
     return response.data;
   },
 
+  testLLMSetting: async (payload) => {
+    const response = await api.post('/api/admin/llm-setting/test/', payload);
+    return response.data;
+  },
+
+  getOpenRouterEndpoints: async (model) => {
+    const params = new URLSearchParams({ model: model || '' });
+    const response = await api.get(`/api/admin/llm-setting/openrouter-endpoints/?${params.toString()}`);
+    return response.data;
+  },
+
   runProviderBenchmark: async (model, runs = 3) => {
     const params = new URLSearchParams({ runs: String(runs), format: 'text' });
     if (model) params.append('model', model);
