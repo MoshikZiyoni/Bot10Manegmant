@@ -1,11 +1,12 @@
 import React, { useState } from 'react';
-import { Activity, Users, ShieldAlert, LayoutDashboard, Mic } from 'lucide-react';
+import { Activity, Users, ShieldAlert, LayoutDashboard, Mic, Cpu } from 'lucide-react';
 import LiveCallMonitor from './LiveCallMonitor';
 import UserCreditManager from './AdminUserList'; // Pending creation
 import SystemControlPanel from './AdminSystemPanel'; // Pending creation
 import UsageReport from './UsageReport';
 import SystemPrompts from './PromptEditor';
 import VoiceSelector from './VoiceSelector';
+import LLMModelManager from './LLMModelManager';
 
 const AdminDashboard = () => {
     const [activeTab, setActiveTab] = useState('live');
@@ -70,6 +71,8 @@ const AdminDashboard = () => {
                 return <SystemPrompts />;
             case 'voice':
                 return <VoiceSelector />;
+            case 'llm':
+                return <LLMModelManager />;
             default:
                 return <LiveCallMonitor />;
         }
@@ -127,6 +130,13 @@ const AdminDashboard = () => {
                 >
                     <Mic size={18} />
                     Voice
+                </button>
+                <button
+                    style={styles.tab(activeTab === 'llm')}
+                    onClick={() => setActiveTab('llm')}
+                >
+                    <Cpu size={18} />
+                    AI Models
                 </button>
             </div>
 

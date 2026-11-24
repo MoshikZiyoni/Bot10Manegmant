@@ -110,6 +110,25 @@ export const callsApi = {
       voice_id: voiceId
     });
     return response.data;
+  },
+
+  getLLMSetting: async () => {
+    const response = await api.get('/api/admin/llm-setting/');
+    return response.data;
+  },
+
+  updateLLMSetting: async (payload) => {
+    const response = await api.post('/api/admin/llm-setting/update/', payload);
+    return response.data;
+  },
+
+  runProviderBenchmark: async (model, runs = 3) => {
+    const params = new URLSearchParams({ runs: String(runs), format: 'text' });
+    if (model) params.append('model', model);
+    const response = await api.get(`/api/benchmark-providers/?${params.toString()}`, {
+      timeout: 90000,
+    });
+    return response.data;
   }
 };
 
