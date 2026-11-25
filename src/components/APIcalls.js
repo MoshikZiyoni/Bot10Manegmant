@@ -143,9 +143,19 @@ export const callsApi = {
     return response.data;
   },
 
-  runProviderBenchmark: async (model, runs = 3) => {
-    const params = new URLSearchParams({ runs: String(runs), format: 'text' });
-    if (model) params.append('model', model);
+  runProviderBenchmark: async (arg1, arg2 = 3) => {
+    const opts = typeof arg1 === 'object' && arg1 !== null
+      ? arg1
+      : { provider: 'openrouter', model: arg1 || '', providers: [], runs: arg2 };
+    const params = new URLSearchParams({
+      runs: String(opts.runs || 3),
+      format: 'text',
+      provider: opts.provider || 'openrouter',
+    });
+    if (opts.model) params.append('model', opts.model);
+    if (opts.provider === 'openrouter' && Array.isArray(opts.providers) && opts.providers.length > 0) {
+      params.append('providers', opts.providers.join(','));
+    }
     const response = await api.get(`/api/benchmark-providers/?${params.toString()}`, {
       timeout: 90000,
     });

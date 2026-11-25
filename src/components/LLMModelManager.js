@@ -22,6 +22,19 @@ const REASONING_OPTIONS = [
     { value: 'on', label: 'מופעל (enabled: true)' },
 ];
 
+const DEFAULT_MODEL_BY_PROVIDER = {
+    openrouter: 'deepseek/deepseek-v4.1-flash-1017',
+    telnyx: 'deepseek-ai/DeepSeek-V4.1-Flash-1017',
+    together: 'deepseek-ai/DeepSeek-V4.1-Flash-1017',
+    deepseek: 'deepseek-flash',
+    gemini: 'gemini-3.5-flash-lite',
+    openai: 'gpt-4o-mini',
+    groq: 'qwen/qwen3.8-27b',
+    nvidia: 'nvidia/nemotron-3.5-super-vl-120b-a12b',
+};
+
+const ALL_DEFAULT_MODELS = new Set(Object.values(DEFAULT_MODEL_BY_PROVIDER));
+
 function extractReasoningMode(extraBody, model) {
     const r = extraBody?.reasoning;
     if (r && typeof r === 'object') {
@@ -280,12 +293,35 @@ const LLMModelManager = () => {
         );
     };
 
-    const handleRunBenchmark = async () => {
+    const handleProviderChange = (nextProvider) => {
+        setProvider(nextProvider);
+        const current = (model || '').trim();
+        if (!current || ALL_DEFAULT_MODELS.has(current)) {
+            if (DEFAULT_MODEL_BY_PROVIDER[nextProvider]) {
+                setModel(DEFAULT_MODEL_BY_PROVIDER[nextProvider]);
+            }
+        }
+    };
+
+    const handleRunBenchmark = async (allOpenRouter = false) => {
+        const targetProvider = provider || 'openrouter';
+        const targetModel = (model || '').trim() || DEFAULT_MODEL_BY_PROVIDER[targetProvider] || 'deepseek/deepseek-v4.1-flash-1017';
+        const selectedOnly = targetProvider === 'openrouter' && !allOpenRouter && selectedOrTags.length > 0
+            ? selectedOrTags
+            : [];
         setBenchLoading(true);
-        setBenchOutput('מריץ בנצ׳מרק 3 פעמים מול השרת שלך (לוקח כ-30-45 שניות)...');
+        setBenchOutput(
+            targetProvider === 'openrouter'
+                ? `מריץ בנצ׳מרק 3 פעמים על OpenRouter (${targetModel})...`
+                : `מריץ בנצ׳מרק 3 פעמים ישירות על ${targetProvider} (${targetModel})...`
+        );
         try {
-            const targetModel = provider === 'openrouter' && model ? model.trim() : 'deepseek/deepseek-v4.1-flash-1017';
-            const tableText = await callsApi.runProviderBenchmark(targetModel, 3);
+            const tableText = await callsApi.runProviderBenchmark({
+                provider: targetProvider,
+                model: targetModel,
+                providers: selectedOnly,
+                runs: 3,
+            });
             setBenchOutput(typeof tableText === 'string' ? tableText : JSON.stringify(tableText, null, 2));
         } catch (err) {
             setBenchOutput(`Benchmark failed: ${err?.response?.data?.error || err.message}`);
@@ -429,7 +465,7 @@ const LLMModelManager = () => {
                         <label style={styles.label}>ספק ראשי (Provider)</label>
                         <select
                             value={provider}
-                            onChange={e => setProvider(e.target.value)}
+                            onChange={e => handleProviderChange(e.target.value)}
                             style={styles.input}
                         >
                             {providers.map(p => (
@@ -616,21 +652,40 @@ const LLMModelManager = () => {
                     <div>
                         <h3 style={{ ...styles.sectionTitle, margin: 0 }}>
                             <Play size={18} color="#10b981" />
-                            בדיקת מהירות מלאה מהשרת (3 ריצות לכל ספק)
+                            בדיקת מהירות מהשרת (3 ריצות)
                         </h3>
                         <p style={{ margin: '4px 0 0 0', fontSize: '0.84rem', color: '#6b7280' }}>
-                            בודק את הפרומפט הנוכחי של הבוט ישירות מ-Railway מול כל הספקים הזמינים של המודל.
+                            {provider === 'openrouter'
+                                ? 'בודק את הפרומפט הנוכחי של הבוט דרך OpenRouter (או רק את הספקים שבחרת).'
+                                : `בודק ישירות רק את ${provider} עם המודל ${(model || '').trim() || DEFAULT_MODEL_BY_PROVIDER[provider] || ''}.`}
                         </p>
                     </div>
-                    <button
-                        type="button"
-                        onClick={handleRunBenchmark}
-                        disabled={benchLoading}
-                        style={styles.benchBtn}
-                    >
-                        <Play size={16} />
-                        {benchLoading ? 'מריץ בדיקה...' : `בדוק מהירות (${provider === 'openrouter' && model ? model : 'DeepSeek'})`}
-                    </button>
+                    <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                        {provider === 'openrouter' && selectedOrTags.length > 0 && (
+                            <button
+                                type="button"
+                                onClick={() => handleRunBenchmark(false)}
+                                disabled={benchLoading}
+                                style={{ ...styles.benchBtn, backgroundColor: '#2563eb' }}
+                            >
+                                <Play size={16} />
+                                {benchLoading ? 'מריץ בדיקה...' : `בדוק רק ספקים נבחרים (${selectedOrTags.length})`}
+                            </button>
+                        )}
+                        <button
+                            type="button"
+                            onClick={() => handleRunBenchmark(true)}
+                            disabled={benchLoading}
+                            style={styles.benchBtn}
+                        >
+                            <Play size={16} />
+                            {benchLoading
+                                ? 'מריץ בדיקה...'
+                                : provider === 'openrouter'
+                                    ? `בדוק את כל הספקים (${(model || '').trim() || 'DeepSeek'})`
+                                    : `בדוק מהירות (${provider} · ${(model || '').trim() || DEFAULT_MODEL_BY_PROVIDER[provider] || ''})`}
+                        </button>
+                    </div>
                 </div>
                 {benchOutput && <pre style={styles.benchPre}>{benchOutput}</pre>}
             </div>
