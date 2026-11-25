@@ -133,6 +133,16 @@ export const callsApi = {
     return response.data;
   },
 
+  getPromptBundle: async () => {
+    const response = await api.get('/api/admin/prompt-bundle/');
+    return response.data;
+  },
+
+  updatePromptBundle: async (payload) => {
+    const response = await api.post('/api/admin/prompt-bundle/update/', payload);
+    return response.data;
+  },
+
   runProviderBenchmark: async (model, runs = 3) => {
     const params = new URLSearchParams({ runs: String(runs), format: 'text' });
     if (model) params.append('model', model);

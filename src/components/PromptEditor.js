@@ -1,25 +1,27 @@
 // src/components/SystemPrompts.js
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
-import { Save, Edit, X, RefreshCw, FileText, Download } from 'lucide-react'; // הוספתי את Download לאייקון
+import { Save, RefreshCw, FileText, Layers } from 'lucide-react';
+import VoicePromptBundleEditor from './VoicePromptBundleEditor';
 
 const SystemPrompts = () => {
+    const [mode, setMode] = useState('bundle'); // 'bundle' | 'legacy'
     const [prompts, setPrompts] = useState([]);
     const [selectedPrompt, setSelectedPrompt] = useState(null);
     const [editContent, setEditContent] = useState('');
     const [loading, setLoading] = useState(false);
     const [saving, setSaving] = useState(false);
-    const [syncing, setSyncing] = useState(false); // State חדש לסנכרון
+    const [syncing, setSyncing] = useState(false);
     const [message, setMessage] = useState(null);
 
     const baseURL = process.env.REACT_APP_API_URL || 'http://localhost:8000';
 
-    // Fetch all prompts on load
-    useEffect(() => {
-        fetchPrompts();
+    const showMessage = useCallback((text, type) => {
+        setMessage({ text, type });
+        setTimeout(() => setMessage(null), 3000);
     }, []);
 
-    const fetchPrompts = async () => {
+    const fetchPrompts = useCallback(async () => {
         setLoading(true);
         try {
             const res = await axios.get(`${baseURL}/api/system-prompts/`);
@@ -30,7 +32,11 @@ const SystemPrompts = () => {
         } finally {
             setLoading(false);
         }
-    };
+    }, [baseURL, showMessage]);
+
+    useEffect(() => {
+        fetchPrompts();
+    }, [fetchPrompts]);
 
     // פונקציה חדשה לסנכרון
     const handleSync = async () => {
@@ -79,11 +85,6 @@ const SystemPrompts = () => {
         }
     };
 
-    const showMessage = (text, type) => {
-        setMessage({ text, type });
-        setTimeout(() => setMessage(null), 3000);
-    };
-
     // --- Styles ---
     const styles = {
         container: { display: 'flex', height: '85vh', gap: '20px', padding: '20px', fontFamily: 'Segoe UI, sans-serif' },
@@ -101,7 +102,43 @@ const SystemPrompts = () => {
         msg: { padding: '10px', borderRadius: '8px', marginBottom: '10px', textAlign: 'center', fontWeight: 'bold' }
     };
 
+    const modeBarStyle = {
+        display: 'flex',
+        gap: '10px',
+        padding: '12px 20px 0 20px',
+        borderBottom: '1px solid #e2e8f0',
+        paddingBottom: '12px',
+    };
+    const modeBtnStyle = (active) => ({
+        padding: '9px 16px',
+        borderRadius: '8px',
+        border: active ? '1px solid #2563eb' : '1px solid #cbd5e1',
+        background: active ? '#eff6ff' : '#ffffff',
+        color: active ? '#1d4ed8' : '#475569',
+        fontWeight: '700',
+        fontSize: '14px',
+        cursor: 'pointer',
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: '8px',
+    });
+
     return (
+        <div>
+            <div style={modeBarStyle}>
+                <button type="button" style={modeBtnStyle(mode === 'bundle')} onClick={() => setMode('bundle')}>
+                    <Layers size={16} />
+                    פרומפט ראשי + פרוצדורות (DB)
+                </button>
+                <button type="button" style={modeBtnStyle(mode === 'legacy')} onClick={() => setMode('legacy')}>
+                    <FileText size={16} />
+                    פרומפטים נוספים (טקסט)
+                </button>
+            </div>
+
+            {mode === 'bundle' ? (
+                <VoicePromptBundleEditor />
+            ) : (
         <div style={styles.container}>
             {/* Sidebar List */}
             <div style={styles.sidebar}>
@@ -179,6 +216,8 @@ const SystemPrompts = () => {
                 )}
             </div>
             <style>{`.spin { animation: spin 1s linear infinite; } @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }`}</style>
+        </div>
+            )}
         </div>
     );
 };
