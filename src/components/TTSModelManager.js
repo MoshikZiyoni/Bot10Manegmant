@@ -514,17 +514,56 @@ const TTSModelManager = () => {
 
                     <div>
                         <label style={styles.label}>Voice ID / Name</label>
-                        <input
-                            type="text"
-                            value={voiceId}
-                            onChange={(e) => setVoiceId(e.target.value)}
-                            style={styles.input}
-                            placeholder="voice_id"
-                        />
+                        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                            <input
+                                type="text"
+                                value={voiceId}
+                                onChange={(e) => setVoiceId(e.target.value)}
+                                style={styles.input}
+                                placeholder={
+                                    provider === 'gemini'
+                                        ? 'לדוגמה: voice_ua1bq0xqehc8 או Charon'
+                                        : provider === 'openai'
+                                            ? 'לדוגמה: coral, ash, alloy'
+                                            : 'ElevenLabs Voice ID (לדוגמה: 1lQHwFERGYJo2wuE0K6Q)'
+                                }
+                            />
+                            <button
+                                type="button"
+                                onClick={handleTestOnly}
+                                disabled={testingOnly || Boolean(verifyingId)}
+                                title="בדוק והשמע את ה-Voice ID הזה"
+                                style={{
+                                    ...styles.chip(false),
+                                    whiteSpace: 'nowrap',
+                                    padding: '9px 12px',
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '5px',
+                                }}
+                            >
+                                {testingOnly ? <Loader2 size={14} className="animate-spin" /> : <Play size={14} />}
+                                בדוק קול זה
+                            </button>
+                        </div>
+                        {provider === 'gemini' && (
+                            <div style={{ fontSize: '0.78rem', color: '#4b5563', marginTop: '5px' }}>
+                                תומך גם בקול מובנה (Charon, Aoede, Puck) וגם בכל Voice ID משובט מגוגל (
+                                <code>voice_...</code> כמו <code>voice_ua1bq0xqehc8</code>) — חייב להשתייך לאותו{' '}
+                                <code>GOOGLE_API_KEY</code> שמוגדר בשרת.
+                            </div>
+                        )}
                         <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginTop: '6px' }}>
                             {[
                                 ...(VOICES_BY_PROVIDER[provider] || []),
-                                ...(provider === 'gemini' ? geminiCustomVoices : []),
+                                ...(provider === 'gemini'
+                                    ? [
+                                          ...geminiCustomVoices,
+                                          ...(!geminiCustomVoices.some((v) => v.id === 'voice_ua1bq0xqehc8')
+                                              ? [{ id: 'voice_ua1bq0xqehc8', label: 'voice_ua1bq0xqehc8 (Custom)' }]
+                                              : []),
+                                      ]
+                                    : []),
                             ].map((v) => (
                                 <button
                                     key={v.id}
