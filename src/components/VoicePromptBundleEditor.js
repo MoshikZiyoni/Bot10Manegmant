@@ -11,11 +11,36 @@ import {
 } from 'lucide-react';
 import { callsApi } from './APIcalls';
 
+const GOOGLE_QUICK_TAGS = [
+    '<short pause>',
+    '<long pause>',
+    '<breath>',
+    '<heavy breath>',
+    '<exhales>',
+    '<chuckle>',
+    '<laugh>',
+    '<giggle>',
+    '<sigh>',
+    '<gasp>',
+    '<throat-clearing>',
+    '<phew>',
+    '<pff>',
+    '<tsk>',
+    '<snicker>',
+    '<whispers>',
+];
+
 const VoicePromptBundleEditor = () => {
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     const [subTab, setSubTab] = useState('core'); // 'core' | 'procedures'
+    const [botTarget, setBotTarget] = useState('bot10'); // 'bot10' | 'shevil'
+    const [ttsVariant, setTtsVariant] = useState('elevenlabs'); // 'elevenlabs' | 'google'
+    const [activeTtsProvider, setActiveTtsProvider] = useState('elevenlabs');
     const [corePrompt, setCorePrompt] = useState('');
+    const [corePromptGoogle, setCorePromptGoogle] = useState('');
+    const [shevilCorePrompt, setShevilCorePrompt] = useState('');
+    const [shevilCorePromptGoogle, setShevilCorePromptGoogle] = useState('');
     const [procedures, setProcedures] = useState([]);
     const [selectedProcId, setSelectedProcId] = useState(null);
     const [updatedAt, setUpdatedAt] = useState(null);
@@ -28,6 +53,12 @@ const VoicePromptBundleEditor = () => {
             const data = await callsApi.getPromptBundle();
             const b = data.bundle || {};
             setCorePrompt(b.core_prompt || '');
+            setCorePromptGoogle(b.core_prompt_google || '');
+            setShevilCorePrompt(b.shevil_core_prompt || '');
+            setShevilCorePromptGoogle(b.shevil_core_prompt_google || '');
+            const activeProv = (data.active_tts_provider || 'elevenlabs').toLowerCase();
+            setActiveTtsProvider(activeProv);
+            setTtsVariant(activeProv === 'gemini' ? 'google' : 'elevenlabs');
             const procs = Array.isArray(b.procedures) ? b.procedures : [];
             setProcedures(procs);
             setSelectedProcId(procs[0]?.id || null);
@@ -102,12 +133,18 @@ const VoicePromptBundleEditor = () => {
                 bundle: {
                     version: 1,
                     core_prompt: corePrompt,
+                    core_prompt_google: corePromptGoogle,
+                    shevil_core_prompt: shevilCorePrompt,
+                    shevil_core_prompt_google: shevilCorePromptGoogle,
                     procedures,
                 },
             });
             if (res.success) {
                 const b = res.bundle || {};
                 setCorePrompt(b.core_prompt || '');
+                setCorePromptGoogle(b.core_prompt_google || '');
+                setShevilCorePrompt(b.shevil_core_prompt || '');
+                setShevilCorePromptGoogle(b.shevil_core_prompt_google || '');
                 setProcedures(b.procedures || []);
                 if (b.procedures?.length && !b.procedures.some(p => p.id === selectedProcId)) {
                     setSelectedProcId(b.procedures[0].id);
@@ -131,6 +168,9 @@ const VoicePromptBundleEditor = () => {
             if (res.success) {
                 const b = res.bundle || {};
                 setCorePrompt(b.core_prompt || '');
+                setCorePromptGoogle(b.core_prompt_google || '');
+                setShevilCorePrompt(b.shevil_core_prompt || '');
+                setShevilCorePromptGoogle(b.shevil_core_prompt_google || '');
                 setProcedures(b.procedures || []);
                 setSelectedProcId(b.procedures?.[0]?.id || null);
                 setUpdatedAt(res.updated_at || null);
@@ -217,24 +257,95 @@ const VoicePromptBundleEditor = () => {
                 </button>
             </div>
 
-            {subTab === 'core' ? (
+            {subTab === 'core' ? (() => {
+                const activePromptValue =
+                    botTarget === 'bot10'
+                        ? (ttsVariant === 'google' ? corePromptGoogle : corePrompt)
+                        : (ttsVariant === 'google' ? shevilCorePromptGoogle : shevilCorePrompt);
+
+                const setActivePromptValue = (nextVal) => {
+                    if (botTarget === 'bot10') {
+                        if (ttsVariant === 'google') setCorePromptGoogle(nextVal);
+                        else setCorePrompt(nextVal);
+                    } else {
+                        if (ttsVariant === 'google') setShevilCorePromptGoogle(nextVal);
+                        else setShevilCorePrompt(nextVal);
+                    }
+                    setDirty(true);
+                };
+
+                const toggleBtn = (active) => ({
+                    padding: '6px 12px',
+                    borderRadius: '7px',
+                    border: active ? '1px solid #2563eb' : '1px solid #cbd5e1',
+                    backgroundColor: active ? '#eff6ff' : '#ffffff',
+                    color: active ? '#1d4ed8' : '#475569',
+                    fontWeight: active ? '700' : '600',
+                    fontSize: '0.82rem',
+                    cursor: 'pointer',
+                });
+
+                return (
                 <div style={styles.coreCard}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px', marginBottom: '10px' }}>
+                        <div style={{ display: 'flex', gap: '6px', alignItems: 'center', flexWrap: 'wrap' }}>
+                            <span style={{ fontSize: '0.8rem', fontWeight: 700, color: '#334155' }}>בוט:</span>
+                            <button type="button" style={toggleBtn(botTarget === 'bot10')} onClick={() => setBotTarget('bot10')}>
+                                BOT 10
+                            </button>
+                            <button type="button" style={toggleBtn(botTarget === 'shevil')} onClick={() => setBotTarget('shevil')}>
+                                בשביל הזהב
+                            </button>
+                        </div>
+
+                        <div style={{ display: 'flex', gap: '6px', alignItems: 'center', flexWrap: 'wrap' }}>
+                            <span style={{ fontSize: '0.8rem', fontWeight: 700, color: '#334155' }}>תגיות מנוע קול:</span>
+                            <button type="button" style={toggleBtn(ttsVariant === 'elevenlabs')} onClick={() => setTtsVariant('elevenlabs')}>
+                                ElevenLabs ([...])
+                            </button>
+                            <button type="button" style={toggleBtn(ttsVariant === 'google')} onClick={() => setTtsVariant('google')}>
+                                Google Gemini TTS (&lt;...&gt;)
+                            </button>
+                            <span style={{ fontSize: '0.75rem', padding: '3px 8px', borderRadius: '999px', backgroundColor: activeTtsProvider === 'gemini' ? '#dcfce7' : '#f1f5f9', color: activeTtsProvider === 'gemini' ? '#166534' : '#475569', fontWeight: 600 }}>
+                                פעיל כעת: {activeTtsProvider === 'gemini' ? 'Google Gemini TTS' : activeTtsProvider}
+                            </span>
+                        </div>
+                    </div>
+
+                    {ttsVariant === 'google' && (
+                        <div style={{ marginBottom: '10px', padding: '10px', borderRadius: '8px', backgroundColor: '#f8fafc', border: '1px solid #e2e8f0' }}>
+                            <div style={{ fontSize: '0.77rem', color: '#475569', marginBottom: '6px' }}>
+                                לחץ להוספת תגית Google Gemini 3.8 TTS לסוף הפרומפט (נכנס לפעולה אוטומטית כשגוגל נבחר במנוע הקול):
+                            </div>
+                            <div style={{ display: 'flex', gap: '5px', flexWrap: 'wrap' }}>
+                                {GOOGLE_QUICK_TAGS.map((tag) => (
+                                    <button
+                                        key={tag}
+                                        type="button"
+                                        onClick={() => setActivePromptValue(activePromptValue ? `${activePromptValue}\n${tag}` : tag)}
+                                        style={{ padding: '3px 8px', borderRadius: '6px', border: '1px solid #cbd5e1', backgroundColor: '#fff', fontSize: '0.75rem', fontFamily: 'monospace', cursor: 'pointer' }}
+                                    >
+                                        {tag}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+
                     <div style={styles.coreHint}>
-                        <span>תווים: {corePrompt.length.toLocaleString()}</span>
+                        <span>תווים: {activePromptValue.length.toLocaleString()}</span>
                         <span>משתנים שמורים: <code>{'{brand}'}</code>, <code>{'{agent}'}</code>, <code>{'{procedure_index}'}</code></span>
                     </div>
                     <textarea
                         dir="rtl"
-                        value={corePrompt}
-                        onChange={e => {
-                            setCorePrompt(e.target.value);
-                            setDirty(true);
-                        }}
+                        value={activePromptValue}
+                        onChange={e => setActivePromptValue(e.target.value)}
                         spellCheck={false}
                         style={styles.coreTextarea}
                     />
                 </div>
-            ) : (
+                );
+            })() : (
                 <div style={styles.procLayout}>
                     {/* Procedures Sidebar */}
                     <div style={styles.procSidebar}>
