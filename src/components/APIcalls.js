@@ -148,6 +148,19 @@ export const callsApi = {
     return response.data;
   },
 
+  manageTTSVoices: async (payload) => {
+    const response = await api.post('/api/admin/tts-setting/voices/', payload);
+    return response.data;
+  },
+
+  cloneGeminiVoice: async (formData) => {
+    const response = await api.post('/api/admin/tts-setting/gemini-clone/', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+      timeout: 60000,
+    });
+    return response.data;
+  },
+
   getPromptBundle: async () => {
     const response = await api.get('/api/admin/prompt-bundle/');
     return response.data;

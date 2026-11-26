@@ -9,6 +9,9 @@ import {
     AlertCircle,
     Loader2,
     ShieldCheck,
+    Plus,
+    Trash2,
+    Upload,
 } from 'lucide-react';
 import { callsApi } from './APIcalls';
 
@@ -53,8 +56,20 @@ const TTSModelManager = () => {
     const [presets, setPresets] = useState([]);
     const [providers, setProviders] = useState([]);
     const [geminiCustomVoices, setGeminiCustomVoices] = useState([]);
+    const [savedVoices, setSavedVoices] = useState([]);
     const [activeConfig, setActiveConfig] = useState(null);
     const [previewAudio, setPreviewAudio] = useState(null);
+
+    // Add New Voice state
+    const [showAddVoice, setShowAddVoice] = useState(false);
+    const [addVoiceMode, setAddVoiceMode] = useState('id'); // 'id' | 'clone'
+    const [newVoiceLabel, setNewVoiceLabel] = useState('');
+    const [newVoiceIdInput, setNewVoiceIdInput] = useState('');
+    const [addingVoice, setAddingVoice] = useState(false);
+    const [cloneDisplayName, setCloneDisplayName] = useState('');
+    const [cloneSourceFile, setCloneSourceFile] = useState(null);
+    const [cloneConsentFile, setCloneConsentFile] = useState(null);
+    const [cloningVoice, setCloningVoice] = useState(false);
 
     // Form state
     const [provider, setProvider] = useState('elevenlabs');
@@ -86,6 +101,7 @@ const TTSModelManager = () => {
             setPresets(data.presets || []);
             setProviders(data.providers || []);
             setGeminiCustomVoices(data.gemini_custom_voices || []);
+            setSavedVoices(data.saved_voices || []);
             applyConfigToForm(data.config, data.source);
         } catch (err) {
             console.error('Failed to load TTS settings:', err);
@@ -239,6 +255,80 @@ const TTSModelManager = () => {
             showToast('error', 'שגיאה באיפוס הגדרות ה-TTS.');
         } finally {
             setVerifyingId(null);
+        }
+    };
+
+    const handleSaveNewVoiceId = async () => {
+        const vid = newVoiceIdInput.trim();
+        const lbl = newVoiceLabel.trim() || vid;
+        if (!vid) {
+            showToast('error', 'יש להזין Voice ID להוספה.');
+            return;
+        }
+        setAddingVoice(true);
+        try {
+            const res = await callsApi.manageTTSVoices({
+                action: 'add',
+                provider,
+                voice_id: vid,
+                label: lbl,
+            });
+            if (res.success) {
+                setSavedVoices(res.saved_voices || []);
+                setVoiceId(vid);
+                setNewVoiceIdInput('');
+                setNewVoiceLabel('');
+                showToast('success', `✅ הקול "${lbl}" (${vid}) נוסף ונבחר. לחץ "בדוק קול זה" או "אמת ושמור לשיחה הבאה".`);
+            }
+        } catch (err) {
+            showToast('error', `❌ שגיאה בהוספת הקול: ${err?.response?.data?.error || err.message}`);
+        } finally {
+            setAddingVoice(false);
+        }
+    };
+
+    const handleDeleteSavedVoice = async (targetVoiceId) => {
+        try {
+            const res = await callsApi.manageTTSVoices({
+                action: 'delete',
+                provider,
+                voice_id: targetVoiceId,
+            });
+            if (res.success) {
+                setSavedVoices(res.saved_voices || []);
+            }
+        } catch (err) {
+            showToast('error', 'שגיאה במחיקת הקול.');
+        }
+    };
+
+    const handleCloneGeminiVoice = async () => {
+        if (!cloneDisplayName.trim() || !cloneSourceFile || !cloneConsentFile) {
+            showToast('error', 'יש למלא שם קול ולהעלות קובץ שמע + קובץ הסכמה.');
+            return;
+        }
+        setCloningVoice(true);
+        setStatusMsg({ type: 'info', text: 'יוצר קול משובט חדש ב-Google Gemini...' });
+        try {
+            const fd = new FormData();
+            fd.append('display_name', cloneDisplayName.trim());
+            fd.append('model', model.trim() || 'gemini-3.8-flash-lite-tts');
+            fd.append('source_audio', cloneSourceFile);
+            fd.append('consent_audio', cloneConsentFile);
+            const res = await callsApi.cloneGeminiVoice(fd);
+            if (res.success) {
+                setSavedVoices(res.saved_voices || []);
+                setProvider('gemini');
+                setVoiceId(res.voice_id);
+                setCloneDisplayName('');
+                setCloneSourceFile(null);
+                setCloneConsentFile(null);
+                showToast('success', `✅ הקול המשובט "${res.display_name}" נוצר ב-Google (${res.voice_id})! לחץ "אמת ושמור לשיחה הבאה".`);
+            }
+        } catch (err) {
+            showToast('error', `❌ יצירת הקול נכשלה: ${err?.response?.data?.error || err.message}`);
+        } finally {
+            setCloningVoice(false);
         }
     };
 
@@ -553,17 +643,10 @@ const TTSModelManager = () => {
                                 <code>GOOGLE_API_KEY</code> שמוגדר בשרת.
                             </div>
                         )}
-                        <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginTop: '6px' }}>
+                        <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginTop: '6px', alignItems: 'center' }}>
                             {[
                                 ...(VOICES_BY_PROVIDER[provider] || []),
-                                ...(provider === 'gemini'
-                                    ? [
-                                          ...geminiCustomVoices,
-                                          ...(!geminiCustomVoices.some((v) => v.id === 'voice_ua1bq0xqehc8')
-                                              ? [{ id: 'voice_ua1bq0xqehc8', label: 'voice_ua1bq0xqehc8 (Custom)' }]
-                                              : []),
-                                      ]
-                                    : []),
+                                ...(provider === 'gemini' ? geminiCustomVoices : []),
                             ].map((v) => (
                                 <button
                                     key={v.id}
@@ -574,7 +657,154 @@ const TTSModelManager = () => {
                                     {v.label}
                                 </button>
                             ))}
+                            {savedVoices
+                                .filter((sv) => sv.provider === provider)
+                                .map((sv) => (
+                                    <span
+                                        key={`saved-${sv.voice_id}`}
+                                        style={{
+                                            ...styles.chip(voiceId === sv.voice_id),
+                                            display: 'inline-flex',
+                                            alignItems: 'center',
+                                            gap: '6px',
+                                        }}
+                                    >
+                                        <span onClick={() => setVoiceId(sv.voice_id)} style={{ cursor: 'pointer' }}>
+                                            {sv.label}
+                                        </span>
+                                        <Trash2
+                                            size={13}
+                                            color="#ef4444"
+                                            style={{ cursor: 'pointer' }}
+                                            onClick={() => handleDeleteSavedVoice(sv.voice_id)}
+                                            title="מחק קול שמור"
+                                        />
+                                    </span>
+                                ))}
+                            <button
+                                type="button"
+                                onClick={() => setShowAddVoice((v) => !v)}
+                                style={{
+                                    ...styles.chip(showAddVoice),
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '4px',
+                                    borderStyle: 'dashed',
+                                }}
+                            >
+                                <Plus size={14} />
+                                הוסף קול חדש
+                            </button>
                         </div>
+
+                        {showAddVoice && (
+                            <div
+                                style={{
+                                    marginTop: '10px',
+                                    padding: '12px',
+                                    borderRadius: '10px',
+                                    border: '1px solid #cbd5e1',
+                                    backgroundColor: '#f8fafc',
+                                    display: 'flex',
+                                    flexDirection: 'column',
+                                    gap: '10px',
+                                }}
+                            >
+                                <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                                    <button
+                                        type="button"
+                                        onClick={() => setAddVoiceMode('id')}
+                                        style={styles.chip(addVoiceMode === 'id')}
+                                    >
+                                        שמירת Voice ID קיים
+                                    </button>
+                                    {provider === 'gemini' && (
+                                        <button
+                                            type="button"
+                                            onClick={() => setAddVoiceMode('clone')}
+                                            style={styles.chip(addVoiceMode === 'clone')}
+                                        >
+                                            שכפול קול חדש ב-Google (העלאת שמע)
+                                        </button>
+                                    )}
+                                </div>
+
+                                {addVoiceMode === 'id' ? (
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                        <input
+                                            type="text"
+                                            value={newVoiceLabel}
+                                            onChange={(e) => setNewVoiceLabel(e.target.value)}
+                                            style={{ ...styles.input, direction: 'rtl', textAlign: 'right' }}
+                                            placeholder="שם תצוגה (לדוגמה: Moshik-test)"
+                                        />
+                                        <input
+                                            type="text"
+                                            value={newVoiceIdInput}
+                                            onChange={(e) => setNewVoiceIdInput(e.target.value)}
+                                            style={styles.input}
+                                            placeholder="Voice ID (לדוגמה: voice_ua1bq0xqehc8)"
+                                        />
+                                        <button
+                                            type="button"
+                                            onClick={handleSaveNewVoiceId}
+                                            disabled={addingVoice}
+                                            style={{
+                                                ...styles.chip(true),
+                                                alignSelf: 'flex-start',
+                                                padding: '8px 14px',
+                                            }}
+                                        >
+                                            {addingVoice ? 'שומר...' : 'הוסף ושמור קול'}
+                                        </button>
+                                    </div>
+                                ) : (
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                        <input
+                                            type="text"
+                                            value={cloneDisplayName}
+                                            onChange={(e) => setCloneDisplayName(e.target.value)}
+                                            style={{ ...styles.input, direction: 'rtl', textAlign: 'right' }}
+                                            placeholder="שם הקול החדש (לדוגמה: Moshik)"
+                                        />
+                                        <div style={{ fontSize: '0.8rem', color: '#334155' }}>
+                                            הקלטת קול מקור (WAV/MP3):
+                                            <input
+                                                type="file"
+                                                accept="audio/*"
+                                                onChange={(e) => setCloneSourceFile(e.target.files?.[0] || null)}
+                                                style={{ display: 'block', marginTop: '4px' }}
+                                            />
+                                        </div>
+                                        <div style={{ fontSize: '0.8rem', color: '#334155' }}>
+                                            הקלטת הסכמה (WAV/MP3):
+                                            <input
+                                                type="file"
+                                                accept="audio/*"
+                                                onChange={(e) => setCloneConsentFile(e.target.files?.[0] || null)}
+                                                style={{ display: 'block', marginTop: '4px' }}
+                                            />
+                                        </div>
+                                        <button
+                                            type="button"
+                                            onClick={handleCloneGeminiVoice}
+                                            disabled={cloningVoice}
+                                            style={{
+                                                ...styles.chip(true),
+                                                alignSelf: 'flex-start',
+                                                padding: '8px 14px',
+                                                display: 'inline-flex',
+                                                alignItems: 'center',
+                                                gap: '6px',
+                                            }}
+                                        >
+                                            {cloningVoice ? <Loader2 size={14} className="animate-spin" /> : <Upload size={14} />}
+                                            {cloningVoice ? 'משכפל ב-Google...' : 'צור קול משובט בגוגל'}
+                                        </button>
+                                    </div>
+                                )}
+                            </div>
+                        )}
                     </div>
                 </div>
 
