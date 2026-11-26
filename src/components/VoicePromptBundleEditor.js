@@ -41,6 +41,10 @@ const VoicePromptBundleEditor = () => {
     const [corePromptGoogle, setCorePromptGoogle] = useState('');
     const [shevilCorePrompt, setShevilCorePrompt] = useState('');
     const [shevilCorePromptGoogle, setShevilCorePromptGoogle] = useState('');
+    const [greetingDelaySec, setGreetingDelaySec] = useState(0);
+    const [bargeInProtectSec, setBargeInProtectSec] = useState(0.6);
+    const [shevilGreetingDelaySec, setShevilGreetingDelaySec] = useState(0);
+    const [shevilBargeInProtectSec, setShevilBargeInProtectSec] = useState(0.6);
     const [procedures, setProcedures] = useState([]);
     const [selectedProcId, setSelectedProcId] = useState(null);
     const [updatedAt, setUpdatedAt] = useState(null);
@@ -56,6 +60,10 @@ const VoicePromptBundleEditor = () => {
             setCorePromptGoogle(b.core_prompt_google || '');
             setShevilCorePrompt(b.shevil_core_prompt || '');
             setShevilCorePromptGoogle(b.shevil_core_prompt_google || '');
+            setGreetingDelaySec(b.greeting_delay_sec ?? 0);
+            setBargeInProtectSec(b.barge_in_protect_sec ?? 0.6);
+            setShevilGreetingDelaySec(b.shevil_greeting_delay_sec ?? 0);
+            setShevilBargeInProtectSec(b.shevil_barge_in_protect_sec ?? 0.6);
             const activeProv = (data.active_tts_provider || 'elevenlabs').toLowerCase();
             setActiveTtsProvider(activeProv);
             setTtsVariant(activeProv === 'gemini' ? 'google' : 'elevenlabs');
@@ -136,6 +144,10 @@ const VoicePromptBundleEditor = () => {
                     core_prompt_google: corePromptGoogle,
                     shevil_core_prompt: shevilCorePrompt,
                     shevil_core_prompt_google: shevilCorePromptGoogle,
+                    greeting_delay_sec: Number(greetingDelaySec) || 0,
+                    barge_in_protect_sec: Number(bargeInProtectSec) || 0,
+                    shevil_greeting_delay_sec: Number(shevilGreetingDelaySec) || 0,
+                    shevil_barge_in_protect_sec: Number(shevilBargeInProtectSec) || 0,
                     procedures,
                 },
             });
@@ -145,6 +157,10 @@ const VoicePromptBundleEditor = () => {
                 setCorePromptGoogle(b.core_prompt_google || '');
                 setShevilCorePrompt(b.shevil_core_prompt || '');
                 setShevilCorePromptGoogle(b.shevil_core_prompt_google || '');
+                setGreetingDelaySec(b.greeting_delay_sec ?? 0);
+                setBargeInProtectSec(b.barge_in_protect_sec ?? 0.6);
+                setShevilGreetingDelaySec(b.shevil_greeting_delay_sec ?? 0);
+                setShevilBargeInProtectSec(b.shevil_barge_in_protect_sec ?? 0.6);
                 setProcedures(b.procedures || []);
                 if (b.procedures?.length && !b.procedures.some(p => p.id === selectedProcId)) {
                     setSelectedProcId(b.procedures[0].id);
@@ -171,6 +187,10 @@ const VoicePromptBundleEditor = () => {
                 setCorePromptGoogle(b.core_prompt_google || '');
                 setShevilCorePrompt(b.shevil_core_prompt || '');
                 setShevilCorePromptGoogle(b.shevil_core_prompt_google || '');
+                setGreetingDelaySec(b.greeting_delay_sec ?? 0);
+                setBargeInProtectSec(b.barge_in_protect_sec ?? 0.6);
+                setShevilGreetingDelaySec(b.shevil_greeting_delay_sec ?? 0);
+                setShevilBargeInProtectSec(b.shevil_barge_in_protect_sec ?? 0.6);
                 setProcedures(b.procedures || []);
                 setSelectedProcId(b.procedures?.[0]?.id || null);
                 setUpdatedAt(res.updated_at || null);
@@ -331,6 +351,85 @@ const VoicePromptBundleEditor = () => {
                             </div>
                         </div>
                     )}
+
+                    <div style={{ marginBottom: '12px', padding: '12px', borderRadius: '10px', backgroundColor: '#f8fafc', border: '1px solid #e2e8f0', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '12px' }}>
+                        <div>
+                            <div style={{ fontSize: '0.82rem', fontWeight: 700, color: '#1e293b', marginBottom: '4px' }}>
+                                ⏳ דיליי לפני משפט הפתיחה ({botTarget === 'bot10' ? 'BOT 10' : 'בשביל הזהב'}) — שניות
+                            </div>
+                            <div style={{ display: 'flex', gap: '6px', alignItems: 'center', flexWrap: 'wrap' }}>
+                                <input
+                                    type="number"
+                                    min="0"
+                                    max="10"
+                                    step="0.1"
+                                    value={botTarget === 'bot10' ? greetingDelaySec : shevilGreetingDelaySec}
+                                    onChange={(e) => {
+                                        const v = e.target.value;
+                                        if (botTarget === 'bot10') setGreetingDelaySec(v);
+                                        else setShevilGreetingDelaySec(v);
+                                        setDirty(true);
+                                    }}
+                                    style={{ width: '78px', padding: '5px 8px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '0.85rem', direction: 'ltr' }}
+                                />
+                                {[0, 0.5, 1.0, 1.5, 2.0].map((sec) => {
+                                    const cur = Number(botTarget === 'bot10' ? greetingDelaySec : shevilGreetingDelaySec);
+                                    return (
+                                        <button
+                                            key={sec}
+                                            type="button"
+                                            onClick={() => {
+                                                if (botTarget === 'bot10') setGreetingDelaySec(sec);
+                                                else setShevilGreetingDelaySec(sec);
+                                                setDirty(true);
+                                            }}
+                                            style={toggleBtn(Math.abs(cur - sec) < 0.01)}
+                                        >
+                                            {sec}s
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                        </div>
+                        <div>
+                            <div style={{ fontSize: '0.82rem', fontWeight: 700, color: '#1e293b', marginBottom: '4px' }}>
+                                🛡️ חסימת קטיעה בתחילת כל משפט של הבוט ({botTarget === 'bot10' ? 'BOT 10' : 'בשביל הזהב'}) — שניות
+                            </div>
+                            <div style={{ display: 'flex', gap: '6px', alignItems: 'center', flexWrap: 'wrap' }}>
+                                <input
+                                    type="number"
+                                    min="0"
+                                    max="15"
+                                    step="0.1"
+                                    value={botTarget === 'bot10' ? bargeInProtectSec : shevilBargeInProtectSec}
+                                    onChange={(e) => {
+                                        const v = e.target.value;
+                                        if (botTarget === 'bot10') setBargeInProtectSec(v);
+                                        else setShevilBargeInProtectSec(v);
+                                        setDirty(true);
+                                    }}
+                                    style={{ width: '78px', padding: '5px 8px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '0.85rem', direction: 'ltr' }}
+                                />
+                                {[0, 0.6, 1.5, 2.5, 4.0].map((sec) => {
+                                    const cur = Number(botTarget === 'bot10' ? bargeInProtectSec : shevilBargeInProtectSec);
+                                    return (
+                                        <button
+                                            key={sec}
+                                            type="button"
+                                            onClick={() => {
+                                                if (botTarget === 'bot10') setBargeInProtectSec(sec);
+                                                else setShevilBargeInProtectSec(sec);
+                                                setDirty(true);
+                                            }}
+                                            style={toggleBtn(Math.abs(cur - sec) < 0.01)}
+                                        >
+                                            {sec}s
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                        </div>
+                    </div>
 
                     <div style={styles.coreHint}>
                         <span>תווים: {activePromptValue.length.toLocaleString()}</span>
