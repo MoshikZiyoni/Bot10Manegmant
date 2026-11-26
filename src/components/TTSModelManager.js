@@ -24,13 +24,13 @@ const VOICES_BY_PROVIDER = {
         { id: 'tVwKBgN4V4YNXrLZSLKc', label: 'Shevil (גל)' },
     ],
     gemini: [
-        { id: 'voice_xg0knzraquq4', label: 'Moshik2 (Cloned)' },
-        { id: 'voice_7jvqg187na2j', label: 'Moshik (Cloned)' },
         { id: 'Charon', label: 'Charon' },
-        { id: 'Puck', label: 'Puck' },
         { id: 'Aoede', label: 'Aoede' },
+        { id: 'Puck', label: 'Puck' },
         { id: 'Kore', label: 'Kore' },
         { id: 'Fenrir', label: 'Fenrir' },
+        { id: 'voice_xg0knzraquq4', label: 'Moshik2 (Custom)' },
+        { id: 'voice_7jvqg187na2j', label: 'Moshik (Custom)' },
     ],
     openai: [
         { id: 'coral', label: 'coral' },
