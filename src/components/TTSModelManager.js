@@ -17,9 +17,26 @@ import { callsApi } from './APIcalls';
 
 const MODELS_BY_PROVIDER = {
     elevenlabs: ['eleven_v4_turbo', 'eleven_flash_v2_5', 'eleven_turbo_v2_5', 'eleven_multilingual_v2'],
-    gemini: ['gemini-3.8-flash-lite-tts', 'gemini-2.5-flash-preview-tts'],
+    gemini: ['gemini-3.8-flash-lite-tts', 'gemini-3.8-flash-tts', 'gemini-2.5-flash-preview-tts'],
     openai: ['gpt-4o-mini-tts', 'tts-1', 'tts-1-hd'],
 };
+
+const GEMINI_QUICK_TAGS = [
+    '<short pause>',
+    '<long pause>',
+    '<breath>',
+    '<heavy breath>',
+    '<exhales>',
+    '<chuckle>',
+    '<laugh>',
+    '<sigh>',
+    '<gasp>',
+    '<giggle>',
+    '<throat-clearing>',
+    '<phew>',
+    '<tsk>',
+    '<whispers>',
+];
 
 const VOICES_BY_PROVIDER = {
     elevenlabs: [
@@ -79,9 +96,12 @@ const TTSModelManager = () => {
     const [stability, setStability] = useState(0.4);
     const [similarityBoost, setSimilarityBoost] = useState(0.75);
     const [style, setStyle] = useState('');
+    const [geminiTagsEnabled, setGeminiTagsEnabled] = useState(true);
+    const [geminiTagsPrompt, setGeminiTagsPrompt] = useState('');
+    const [defaultGeminiTagsPrompt, setDefaultGeminiTagsPrompt] = useState('');
     const [sampleText, setSampleText] = useState('שלום, זו בדיקת קול מהמערכת.');
 
-    const applyConfigToForm = useCallback((cfg, src) => {
+    const applyConfigToForm = useCallback((cfg, src, fallbackTagsPrompt = '') => {
         if (!cfg) return;
         setActiveConfig(cfg);
         setSource(src || 'env');
@@ -92,6 +112,8 @@ const TTSModelManager = () => {
         setStability(cfg.stability ?? 0.4);
         setSimilarityBoost(cfg.similarity_boost ?? 0.75);
         setStyle(cfg.style || '');
+        setGeminiTagsEnabled(cfg.gemini_tags_enabled !== false);
+        setGeminiTagsPrompt(cfg.gemini_tags_prompt || fallbackTagsPrompt || '');
     }, []);
 
     const fetchSettings = useCallback(async () => {
@@ -102,7 +124,8 @@ const TTSModelManager = () => {
             setProviders(data.providers || []);
             setGeminiCustomVoices(data.gemini_custom_voices || []);
             setSavedVoices(data.saved_voices || []);
-            applyConfigToForm(data.config, data.source);
+            setDefaultGeminiTagsPrompt(data.default_gemini_tags_prompt || '');
+            applyConfigToForm(data.config, data.source, data.default_gemini_tags_prompt || '');
         } catch (err) {
             console.error('Failed to load TTS settings:', err);
             setStatusMsg({ type: 'error', text: 'שגיאה בטעינת הגדרות ה-TTS מהשרת.' });
@@ -199,6 +222,8 @@ const TTSModelManager = () => {
         stability: parseFloat(stability) || 0.4,
         similarity_boost: parseFloat(similarityBoost) || 0.75,
         style: style.trim(),
+        gemini_tags_enabled: geminiTagsEnabled,
+        gemini_tags_prompt: geminiTagsPrompt.trim() || defaultGeminiTagsPrompt,
         sample_text: sampleText.trim() || 'שלום, זו בדיקת קול מהמערכת.',
     });
 
@@ -864,6 +889,78 @@ const TTSModelManager = () => {
                                 style={styles.input}
                                 placeholder="casual, warm, enthusiastic..."
                             />
+                        </div>
+                    )}
+                    {provider === 'gemini' && (
+                        <div
+                            style={{
+                                gridColumn: '1 / -1',
+                                padding: '12px',
+                                borderRadius: '10px',
+                                border: '1px solid #cbd5e1',
+                                backgroundColor: '#f8fafc',
+                                display: 'flex',
+                                flexDirection: 'column',
+                                gap: '10px',
+                            }}
+                        >
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
+                                <label style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', fontWeight: 700, fontSize: '0.88rem', color: '#0f172a', cursor: 'pointer' }}>
+                                    <input
+                                        type="checkbox"
+                                        checked={geminiTagsEnabled}
+                                        onChange={(e) => setGeminiTagsEnabled(e.target.checked)}
+                                    />
+                                    הפעל הנחיות תגיות אודיו של גוגל (&lt;...&gt;) ב-BOT 10 ובשביל הזהב
+                                </label>
+                                {defaultGeminiTagsPrompt && (
+                                    <button
+                                        type="button"
+                                        onClick={() => setGeminiTagsPrompt(defaultGeminiTagsPrompt)}
+                                        style={{ ...styles.chip(false), fontSize: '0.75rem' }}
+                                    >
+                                        איפוס לברירת מחדל
+                                    </button>
+                                )}
+                            </div>
+
+                            <div>
+                                <div style={{ fontSize: '0.76rem', color: '#475569', marginBottom: '5px' }}>
+                                    תגיות נתמכות של Google Gemini 3.8 TTS (לחץ להוספה לטקסט הבדיקה):
+                                </div>
+                                <div style={{ display: 'flex', gap: '5px', flexWrap: 'wrap' }}>
+                                    {GEMINI_QUICK_TAGS.map((tag) => (
+                                        <button
+                                            key={tag}
+                                            type="button"
+                                            onClick={() => setSampleText((prev) => (prev ? `${prev.trim()} ${tag}` : tag))}
+                                            style={{ ...styles.chip(false), fontSize: '0.75rem', fontFamily: 'monospace' }}
+                                        >
+                                            {tag}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+
+                            <div>
+                                <label style={styles.label}>הנחיות תגיות אודיו ל-LLM כשגוגל פעיל (ניתן לעריכה):</label>
+                                <textarea
+                                    dir="rtl"
+                                    rows={7}
+                                    value={geminiTagsPrompt}
+                                    onChange={(e) => setGeminiTagsPrompt(e.target.value)}
+                                    disabled={!geminiTagsEnabled}
+                                    style={{
+                                        ...styles.input,
+                                        direction: 'rtl',
+                                        textAlign: 'right',
+                                        fontFamily: 'inherit',
+                                        lineHeight: 1.5,
+                                        resize: 'vertical',
+                                        opacity: geminiTagsEnabled ? 1 : 0.6,
+                                    }}
+                                />
+                            </div>
                         </div>
                     )}
                 </div>
