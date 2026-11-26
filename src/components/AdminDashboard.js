@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Activity, Users, ShieldAlert, LayoutDashboard, Mic, Cpu } from 'lucide-react';
+import { Activity, Users, ShieldAlert, LayoutDashboard, Mic, Cpu, Volume2 } from 'lucide-react';
 import LiveCallMonitor from './LiveCallMonitor';
 import UserCreditManager from './AdminUserList'; // Pending creation
 import SystemControlPanel from './AdminSystemPanel'; // Pending creation
@@ -7,6 +7,7 @@ import UsageReport from './UsageReport';
 import SystemPrompts from './PromptEditor';
 import VoiceSelector from './VoiceSelector';
 import LLMModelManager from './LLMModelManager';
+import TTSModelManager from './TTSModelManager';
 
 const AdminDashboard = () => {
     const [activeTab, setActiveTab] = useState('live');
@@ -73,6 +74,8 @@ const AdminDashboard = () => {
                 return <VoiceSelector />;
             case 'llm':
                 return <LLMModelManager />;
+            case 'tts':
+                return <TTSModelManager />;
             default:
                 return <LiveCallMonitor />;
         }
@@ -137,6 +140,13 @@ const AdminDashboard = () => {
                 >
                     <Cpu size={18} />
                     AI Models
+                </button>
+                <button
+                    style={styles.tab(activeTab === 'tts')}
+                    onClick={() => setActiveTab('tts')}
+                >
+                    <Volume2 size={18} />
+                    TTS Engine
                 </button>
             </div>
 

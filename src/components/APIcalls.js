@@ -133,6 +133,21 @@ export const callsApi = {
     return response.data;
   },
 
+  getTTSSetting: async () => {
+    const response = await api.get('/api/admin/tts-setting/');
+    return response.data;
+  },
+
+  updateTTSSetting: async (payload) => {
+    const response = await api.post('/api/admin/tts-setting/update/', payload);
+    return response.data;
+  },
+
+  testTTSSetting: async (payload) => {
+    const response = await api.post('/api/admin/tts-setting/test/', payload);
+    return response.data;
+  },
+
   getPromptBundle: async () => {
     const response = await api.get('/api/admin/prompt-bundle/');
     return response.data;
