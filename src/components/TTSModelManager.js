@@ -29,8 +29,9 @@ const VOICES_BY_PROVIDER = {
         { id: 'Puck', label: 'Puck' },
         { id: 'Kore', label: 'Kore' },
         { id: 'Fenrir', label: 'Fenrir' },
-        { id: 'voice_xg0knzraquq4', label: 'Moshik2 (Custom)' },
-        { id: 'voice_7jvqg187na2j', label: 'Moshik (Custom)' },
+        { id: 'Zephyr', label: 'Zephyr' },
+        { id: 'Orus', label: 'Orus' },
+        { id: 'Leda', label: 'Leda' },
     ],
     openai: [
         { id: 'coral', label: 'coral' },
@@ -51,6 +52,7 @@ const TTSModelManager = () => {
     const [source, setSource] = useState('env');
     const [presets, setPresets] = useState([]);
     const [providers, setProviders] = useState([]);
+    const [geminiCustomVoices, setGeminiCustomVoices] = useState([]);
     const [activeConfig, setActiveConfig] = useState(null);
     const [previewAudio, setPreviewAudio] = useState(null);
 
@@ -83,6 +85,7 @@ const TTSModelManager = () => {
             const data = await callsApi.getTTSSetting();
             setPresets(data.presets || []);
             setProviders(data.providers || []);
+            setGeminiCustomVoices(data.gemini_custom_voices || []);
             applyConfigToForm(data.config, data.source);
         } catch (err) {
             console.error('Failed to load TTS settings:', err);
@@ -519,7 +522,10 @@ const TTSModelManager = () => {
                             placeholder="voice_id"
                         />
                         <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginTop: '6px' }}>
-                            {(VOICES_BY_PROVIDER[provider] || []).map((v) => (
+                            {[
+                                ...(VOICES_BY_PROVIDER[provider] || []),
+                                ...(provider === 'gemini' ? geminiCustomVoices : []),
+                            ].map((v) => (
                                 <button
                                     key={v.id}
                                     type="button"
