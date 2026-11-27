@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Activity, Users, ShieldAlert, LayoutDashboard, Mic, Cpu, Volume2 } from 'lucide-react';
+import { Activity, Users, ShieldAlert, LayoutDashboard, Mic, Cpu, Volume2, Sliders } from 'lucide-react';
 import LiveCallMonitor from './LiveCallMonitor';
 import UserCreditManager from './AdminUserList'; // Pending creation
 import SystemControlPanel from './AdminSystemPanel'; // Pending creation
@@ -8,6 +8,7 @@ import SystemPrompts from './PromptEditor';
 import VoiceSelector from './VoiceSelector';
 import LLMModelManager from './LLMModelManager';
 import TTSModelManager from './TTSModelManager';
+import PipelineManager from './PipelineManager';
 
 const AdminDashboard = () => {
     const [activeTab, setActiveTab] = useState('live');
@@ -34,7 +35,8 @@ const AdminDashboard = () => {
         },
         tabs: {
             display: 'flex',
-            gap: '1rem',
+            flexWrap: 'wrap',
+            gap: '0.5rem 1rem',
             marginBottom: '2rem',
             borderBottom: '1px solid #e5e7eb',
         },
@@ -76,6 +78,8 @@ const AdminDashboard = () => {
                 return <LLMModelManager />;
             case 'tts':
                 return <TTSModelManager />;
+            case 'pipeline':
+                return <PipelineManager onNavigateTab={setActiveTab} />;
             default:
                 return <LiveCallMonitor />;
         }
@@ -147,6 +151,13 @@ const AdminDashboard = () => {
                 >
                     <Volume2 size={18} />
                     TTS Engine
+                </button>
+                <button
+                    style={styles.tab(activeTab === 'pipeline')}
+                    onClick={() => setActiveTab('pipeline')}
+                >
+                    <Sliders size={18} />
+                    Pipeline & STT
                 </button>
             </div>
 

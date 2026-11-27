@@ -171,6 +171,22 @@ export const callsApi = {
     return response.data;
   },
 
+  getPipelineSetting: async (profile = 'global') => {
+    const params = new URLSearchParams({ profile: profile || 'global' });
+    const response = await api.get(`/api/admin/pipeline-setting/?${params.toString()}`);
+    return response.data;
+  },
+
+  updatePipelineSetting: async (payload) => {
+    const response = await api.post('/api/admin/pipeline-setting/update/', payload);
+    return response.data;
+  },
+
+  testSTTSetting: async (payload) => {
+    const response = await api.post('/api/admin/pipeline-setting/test-stt/', payload);
+    return response.data;
+  },
+
   runProviderBenchmark: async (arg1, arg2 = 3) => {
     const opts = typeof arg1 === 'object' && arg1 !== null
       ? arg1
