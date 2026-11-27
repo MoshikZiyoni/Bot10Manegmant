@@ -3,9 +3,7 @@ import {
     Sliders,
     Mic,
     Clock,
-    Shield,
     Cpu,
-    Volume2,
     Save,
     RotateCcw,
     Play,
@@ -16,10 +14,14 @@ import {
     CheckCircle2,
     AlertCircle,
     Loader2,
-    Sparkles,
-    ArrowLeft,
+    HelpCircle,
+    ChevronDown,
+    ChevronUp,
+    AlertTriangle,
     Tag,
     Zap,
+    MessageSquareOff,
+    ArrowLeft,
 } from 'lucide-react';
 import { callsApi } from './APIcalls';
 
@@ -34,42 +36,44 @@ const DEFAULT_CONFIG = {
         deepgram_vad_events: true,
         scribe_model_id: 'scribe_v3_live',
         scribe_language: 'he',
-        scribe_vad_silence_secs: 0.7,
+        scribe_vad_silence_secs: 0.4,
         scribe_audio_format: 'pcm_8000',
         scribe_filter_background_audio: false,
         fallback_to_deepgram: true,
-        audio_gain: 1.0,
+        audio_gain: 1.35,
         keyterms: [],
         replace_rules: [],
     },
     turn_taking: {
         speculative_turn: true,
         speculative_tts: false,
-        speculative_silence_sec: 0.15,
+        speculative_silence_sec: 0.35,
         early_release_silence_sec: 0.95,
         early_release_question_sec: 0.75,
         early_release_short_sec: 0.70,
         endpoint_fallback_silence_sec: 0.90,
         incomplete_extra_wait_sec: 0.80,
-        number_extra_wait_sec: 1.80,
+        number_extra_wait_sec: 3.0,
         soft_commit_wait_sec: 0.45,
     },
     barge_in: {
         enabled: true,
-        protect_words: 3,
-        min_words: 2,
+        protect_words: 2,
+        protect_sec: 2.5,
+        min_words: 4,
         vad_frames: 25,
         echo_shield_sec: 0.6,
         disable_first_message_interruptions: true,
         voice_rms: 225,
         run_rms: 325,
-        greeting_delay_sec: 0.0,
+        greeting_delay_sec: 1.0,
+        ignore_phrases: [],
     },
     llm_pipeline: {
-        temperature: 0.0,
+        temperature: 0.4,
         max_tokens: 160,
         history_items: 100,
-        hedge_after: 1.6,
+        hedge_after: 0.55,
         race: false,
         first_token_timeout: 4.5,
         stall_timeout: 3.0,
@@ -77,7 +81,7 @@ const DEFAULT_CONFIG = {
     tts_pipeline: {
         prebuffer_ms: 40,
         playout_lead_sec: 0.5,
-        first_comma_words: 99,
+        first_comma_words: 3,
         merge_rest_sec: 0.45,
         elevenlabs_previous_text: true,
     },
@@ -88,21 +92,196 @@ const DEFAULT_CONFIG = {
     },
 };
 
+const FIELD_HELP = {
+    deepgram_endpointing_ms: {
+        what: 'כמה מילישניות של שקט Deepgram מחכה לפני שהוא מחליט שהלקוח סיים משפט.',
+        up: 'מחכה יותר לפני שחרור משפט — פחות קטיעות, אבל תגובה מעט איטית יותר.',
+        down: 'תגובה מהירה יותר, אבל עלול לשבור משפט אם הלקוח עוצר לקחת אוויר.',
+    },
+    deepgram_utterance_end_ms: {
+        what: 'זמן שקט מרבי (במילישניות) ש-Deepgram מחכה במקרה של רעש רקע כדי לסגור דיבור.',
+        up: 'סבלני יותר ברעשי רקע.',
+        down: 'סוגר את הדיבור מהר יותר.',
+    },
+    audio_gain: {
+        what: 'הגברה דיגיטלית של קול הלקוח לפני שליחה לתמלול (1.0 = עוצמה מקורית).',
+        up: 'עוזר כשהלקוח נשמע חלש, אבל גבוה מדי עלול להגביר רעשי קו ולעוות מילים.',
+        down: 'פחות עיוותים בקו חזק, אבל לקוחות שקטים עלולים להישמע חלש.',
+    },
+    scribe_vad_silence_secs: {
+        what: 'משך השקט בשניות לפני ש-ElevenLabs Scribe סוגר משפט.',
+        up: 'פחות קטיעות באמצע מחשבה, תגובה איטית יותר.',
+        down: 'תגובה זריזה יותר.',
+    },
+    greeting_delay_sec: {
+        what: 'השהייה בשניות מרגע שהשיחה נפתחת ועד שהבוט אומר את משפט הפתיחה ("היי...").',
+        up: 'נותן לקו להתייצב וללקוח לומר "הלו" ראשון לפני שהבוט מתחיל.',
+        down: 'הבוט מדבר מיד עם המענה (אם 0 — עלול להיבלע חצי משפט בתחילת שיחה).',
+    },
+    protect_sec: {
+        what: 'כמה שניות מתחילת כל תשובה של הבוט אסור ללקוח לקטוע אותו (חסימת קטיעה).',
+        up: 'הבוט יסיים יותר מהמשפט בלי להיעצר מהדים או מרעשי רקע.',
+        down: 'הלקוח יכול לעצור את הבוט מוקדם יותר באמצע הדיבור.',
+    },
+    min_words: {
+        what: 'כמה מילים משמעותיות הלקוח חייב לומר כדי שהבוט יעצור (Barge-In).',
+        up: 'חוסם קטיעות מקריות ממילים בודדות או רעש — צריך משפט של ממש כדי לעצור.',
+        down: 'עצירה מיידית כבר במילה-שתיים של הלקוח.',
+    },
+    voice_rms: {
+        what: 'סף עוצמת השמע המינימלי בקו שממנו המערכת מזהה שהלקוח מדבר (בזמן האזנה).',
+        up: 'הבוט פחות רגיש לרעשי רקע/נשימות, אבל לקוח שמדבר חלש עלול לא להיקלט.',
+        down: 'רגיש מאוד לכל לחישה, אבל רעש רחוב או רוח עלולים להיראות כדיבור.',
+    },
+    run_rms: {
+        what: 'סף עוצמת השמע בזמן שהבוט עצמו מדבר — מונע מההד של הבוט לקטוע את עצמו.',
+        up: 'הגנה חזקה יותר נגד הד (Echo), דורש קול ברור יותר מהלקוח כדי לקטוע.',
+        down: 'קל יותר לקטוע את הבוט, אבל הד בקו עלול לגרום לעצירות שווא.',
+    },
+    vad_frames: {
+        what: 'כמה פריימים רצופים של דיבור (כל פריים = 20ms) נדרשים כדי להפעיל קטיעה.',
+        up: 'מונע קטיעה מצפצופים קצרים או שיעול.',
+        down: 'תגובת עצירה מהירה יותר.',
+    },
+    echo_shield_sec: {
+        what: 'מגן הד קשיח בתחילת השמעה, למניעת זיהוי עצמי של קול הבוט כקטיעה.',
+        up: 'מונע קטיעות שווא בקווים עם הד.',
+        down: 'מאפשר קטיעה מהירה יותר בתחילת המשפט.',
+    },
+    protect_words: {
+        what: 'גיבוי לפי מספר מילים מוגנות כשאין דריסת שניות מפורשת (-1 = חסום כל התשובה).',
+        up: 'מגן על יותר מילים בתחילת התשובה.',
+        down: 'פחות הגנה.',
+    },
+    early_release_silence_sec: {
+        what: 'כמה שניות שקט לאחר משפט רגיל לפני שהבוט משחרר את התשובה המוכנה.',
+        up: 'פחות סיכוי לקטוע לקוח שעוצר לחשוב, שיחה איטית יותר.',
+        down: 'תגובה מהירה מאוד, סיכון לקטוע לקוח באמצע מחשבה.',
+    },
+    early_release_question_sec: {
+        what: 'כמה שניות שקט כשהלקוח שאל שאלה (3+ מילים).',
+        up: 'מחכה יותר גם אחרי שאלה.',
+        down: 'עונה מהר יותר לשאלות.',
+    },
+    early_release_short_sec: {
+        what: 'כמה שניות שקט אחרי תשובה קצרה וברורה ("כן", "מעולה").',
+        up: 'איטי יותר.',
+        down: 'ממשיך מהר יותר.',
+    },
+    number_extra_wait_sec: {
+        what: 'זמן המתנה נוסף כשהלקוח מכתיב ספרות של מספר טלפון (שלא יקטע באמצע המספר).',
+        up: 'נותן ללקוח הרבה זמן להכתיב מספר בחלקים.',
+        down: 'קצר יותר — עלול לענות לפני שהלקוח סיים את כל הספרות.',
+    },
+    speculative_silence_sec: {
+        what: 'אחרי כמה שניות שקט המודל מתחיל להכין תשובה ברקע (עוד לפני השחרור).',
+        up: 'פחות קריאות LLM מיותרות שנזרקות לפח.',
+        down: 'תשובה מוכנה מוקדם יותר, יותר קריאות ספקולטיביות.',
+    },
+    temperature: {
+        what: 'רמת היצירתיות והגיוון של ה-LLM (0 = צמוד לחוקים, 1 = יצירתי יותר).',
+        up: 'ניסוחים מגוונים יותר, סיכון קטן לסטייה מהוראות.',
+        down: 'תשובות עקביות ומדויקות יותר.',
+    },
+    hedge_after: {
+        what: 'אחרי כמה שניות המערכת שולחת בקשת גיבוי מקבילה אם ה-LLM עוד לא ענה.',
+        up: 'פחות בקשות כפולות, שיהוי ארוך יותר במקרה של תקיעה.',
+        down: 'מבטיח תגובה מהירה גם אם שרת אחד איטי.',
+    },
+    silence_end_call_timeout_sec: {
+        what: 'אחרי כמה שניות של דממה מוחלטת משני הצדדים הבוט מנתק את השיחה.',
+        up: 'מחכה יותר לפני ניתוק.',
+        down: 'מנתק מהר יותר כשהשיחה ננטשת.',
+    },
+    max_call_sec: {
+        what: 'אורך שיחה מקסימלי בשניות כהגנה משיחות תקועות.',
+        up: 'מאפשר שיחות ארוכות יותר.',
+        down: 'קוטע שיחה מוקדם יותר.',
+    },
+};
+
+const InfoTip = ({ helpKey, defaultVal }) => {
+    const [open, setOpen] = useState(false);
+    const info = FIELD_HELP[helpKey];
+    if (!info) return null;
+    return (
+        <span style={{ position: 'relative', display: 'inline-flex', alignItems: 'center' }}>
+            <button
+                type="button"
+                onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    setOpen((v) => !v);
+                }}
+                onBlur={() => setTimeout(() => setOpen(false), 180)}
+                style={{
+                    border: 'none',
+                    background: open ? '#e4e4e7' : 'transparent',
+                    color: '#71717a',
+                    borderRadius: '999px',
+                    width: '20px',
+                    height: '20px',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    cursor: 'pointer',
+                    padding: 0,
+                }}
+                title="הסבר"
+            >
+                <HelpCircle size={14} />
+            </button>
+            {open && (
+                <div
+                    style={{
+                        position: 'absolute',
+                        top: '26px',
+                        right: 0,
+                        zIndex: 50,
+                        width: '280px',
+                        padding: '12px',
+                        borderRadius: '10px',
+                        backgroundColor: '#18181b',
+                        color: '#fafafa',
+                        fontSize: '0.77rem',
+                        lineHeight: 1.5,
+                        boxShadow: '0 12px 30px rgba(0,0,0,0.28)',
+                        textAlign: 'right',
+                    }}
+                >
+                    <div style={{ fontWeight: 700, marginBottom: '6px', color: '#fff' }}>{info.what}</div>
+                    {info.up && <div style={{ color: '#a7f3d0', marginBottom: '3px' }}>⬆️ <strong>העלאה:</strong> {info.up}</div>}
+                    {info.down && <div style={{ color: '#fde68a', marginBottom: '4px' }}>⬇️ <strong>הורדה:</strong> {info.down}</div>}
+                    {defaultVal !== undefined && (
+                        <div style={{ marginTop: '6px', paddingTop: '6px', borderTop: '1px solid #3f3f46', color: '#d4d4d8', fontSize: '0.73rem' }}>
+                            ברירת מחדל (.env/DB): <strong style={{ direction: 'ltr', display: 'inline-block' }}>{String(defaultVal)}</strong>
+                        </div>
+                    )}
+                </div>
+            )}
+        </span>
+    );
+};
+
 const PipelineManager = ({ onNavigateTab }) => {
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     const [testingStt, setTestingStt] = useState(false);
-    const [activeStage, setActiveStage] = useState('stt'); // 'stt' | 'turn_taking' | 'barge_in' | 'llm_tts'
+    const [activeStage, setActiveStage] = useState('stt'); // 'stt' | 'barge_in' | 'turn_taking' | 'llm_tts'
+    const [showAdvanced, setShowAdvanced] = useState(false);
+
     const [profileId, setProfileId] = useState('global');
     const [profiles, setProfiles] = useState([]);
     const [source, setSource] = useState('env');
     const [sttProviders, setSttProviders] = useState([]);
     const [speedPresets, setSpeedPresets] = useState([]);
     const [keywordPresets, setKeywordPresets] = useState({});
+    const [ignorePresets, setIgnorePresets] = useState({});
     const [activeLlm, setActiveLlm] = useState(null);
     const [activeTts, setActiveTts] = useState(null);
 
     const [config, setConfig] = useState(DEFAULT_CONFIG);
+    const [envDefaults, setEnvDefaults] = useState(DEFAULT_CONFIG);
     const [dirty, setDirty] = useState(false);
     const [toast, setToast] = useState(null);
     const [sttTestResult, setSttTestResult] = useState(null);
@@ -115,7 +294,12 @@ const PipelineManager = ({ onNavigateTab }) => {
     const [replaceFrom, setReplaceFrom] = useState('');
     const [replaceTo, setReplaceTo] = useState('');
 
-    // New Bot Profile modal/inline
+    // Ignore Phrases state
+    const [newIgnorePhrase, setNewIgnorePhrase] = useState('');
+    const [showIgnoreBulk, setShowIgnoreBulk] = useState(false);
+    const [ignoreBulkText, setIgnoreBulkText] = useState('');
+
+    // New Bot Profile inline
     const [showNewProfile, setShowNewProfile] = useState(false);
     const [newProfileName, setNewProfileName] = useState('');
     const importInputRef = useRef(null);
@@ -124,9 +308,19 @@ const PipelineManager = ({ onNavigateTab }) => {
         setToast({ type, text });
     };
 
+    const mergeWithDefault = (incoming) => ({
+        stt: { ...DEFAULT_CONFIG.stt, ...(incoming?.stt || {}) },
+        turn_taking: { ...DEFAULT_CONFIG.turn_taking, ...(incoming?.turn_taking || {}) },
+        barge_in: { ...DEFAULT_CONFIG.barge_in, ...(incoming?.barge_in || {}) },
+        llm_pipeline: { ...DEFAULT_CONFIG.llm_pipeline, ...(incoming?.llm_pipeline || {}) },
+        tts_pipeline: { ...DEFAULT_CONFIG.tts_pipeline, ...(incoming?.tts_pipeline || {}) },
+        limits: { ...DEFAULT_CONFIG.limits, ...(incoming?.limits || {}) },
+    });
+
     const loadProfile = useCallback(async (targetProfile = 'global') => {
         setLoading(true);
         setSttTestResult(null);
+        setShowAdvanced(false);
         try {
             const data = await callsApi.getPipelineSetting(targetProfile);
             setProfileId(data.profile || targetProfile);
@@ -135,18 +329,11 @@ const PipelineManager = ({ onNavigateTab }) => {
             setSttProviders(data.stt_providers || []);
             setSpeedPresets(data.speed_presets || []);
             setKeywordPresets(data.keyword_presets || {});
+            setIgnorePresets(data.ignore_phrase_presets || {});
             setActiveLlm(data.active_llm || null);
             setActiveTts(data.active_tts || null);
-            setConfig({
-                ...DEFAULT_CONFIG,
-                ...(data.config || {}),
-                stt: { ...DEFAULT_CONFIG.stt, ...(data.config?.stt || {}) },
-                turn_taking: { ...DEFAULT_CONFIG.turn_taking, ...(data.config?.turn_taking || {}) },
-                barge_in: { ...DEFAULT_CONFIG.barge_in, ...(data.config?.barge_in || {}) },
-                llm_pipeline: { ...DEFAULT_CONFIG.llm_pipeline, ...(data.config?.llm_pipeline || {}) },
-                tts_pipeline: { ...DEFAULT_CONFIG.tts_pipeline, ...(data.config?.tts_pipeline || {}) },
-                limits: { ...DEFAULT_CONFIG.limits, ...(data.config?.limits || {}) },
-            });
+            setEnvDefaults(mergeWithDefault(data.env_defaults || data.config));
+            setConfig(mergeWithDefault(data.config));
             setDirty(false);
         } catch (err) {
             console.error('Failed to load pipeline config:', err);
@@ -176,41 +363,13 @@ const PipelineManager = ({ onNavigateTab }) => {
     const supportsBoost = isDeepgram && !isNova3;
     const maxKeyterms = isDeepgram ? 100 : 50;
 
-    const getStandardBanner = () => {
-        if (!isDeepgram) {
-            return {
-                title: 'תקן ElevenLabs Scribe Realtime (keyterms)',
-                text: 'Scribe תומך בעד 50 מונחי מפתח (keyterms) נקיים ללא משקל (:boost). אידיאלי לשמות מותגים, שמות פרטיים ומונחים מקצועיים.',
-                color: '#7c3aed',
-                bg: '#f5f3ff',
-                border: '#ddd6fe',
-            };
-        }
-        if (isNova3) {
-            return {
-                title: 'תקן Deepgram Nova-3 (keyterm)',
-                text: 'Nova-3 משתמש בפרמטר keyterm (עד 100 ביטויים). יש להזין מילים או ביטויים נקיים ללא ניקוד וללא משקל מספרי (:2).',
-                color: '#0369a1',
-                bg: '#f0f9ff',
-                border: '#bae6fd',
-            };
-        }
-        return {
-            title: 'תקן Deepgram Nova-2 (keywords + boost)',
-            text: 'Nova-2 משתמש בפרמטר keywords ותומך בחיזוק משקל בפורמט מילה:משקל (למשל בוט טן:2).',
-            color: '#0f766e',
-            bg: '#f0fdfa',
-            border: '#99f6e4',
-        };
-    };
-
+    // Keywords handlers
     const handleAddKeyword = () => {
         const raw = newKeyword.trim();
         if (!raw) return;
         let entry = raw;
         if (supportsBoost && newBoost.trim()) {
-            const cleanBase = raw.split(':')[0].trim();
-            entry = `${cleanBase}:${newBoost.trim()}`;
+            entry = `${raw.split(':')[0].trim()}:${newBoost.trim()}`;
         } else if (!supportsBoost && raw.includes(':')) {
             const parts = raw.split(':');
             if (!Number.isNaN(Number(parts[parts.length - 1]))) {
@@ -223,7 +382,7 @@ const PipelineManager = ({ onNavigateTab }) => {
             return;
         }
         if (current.length >= maxKeyterms) {
-            showMessage('error', `הגעת למגבלה של ${maxKeyterms} מילות מפתח עבור מודל זה.`);
+            showMessage('error', `הגעת למגבלה של ${maxKeyterms} מילות מפתח למודל זה.`);
             return;
         }
         updateSection('stt', { keyterms: [...current, entry] });
@@ -231,47 +390,47 @@ const PipelineManager = ({ onNavigateTab }) => {
         setNewBoost('');
     };
 
-    const handleRemoveKeyword = (term) => {
-        updateSection('stt', {
-            keyterms: (stt.keyterms || []).filter((t) => t !== term),
-        });
-    };
-
     const handleApplyBulkPaste = () => {
-        const items = bulkText
-            .split(/[\n,]+/)
-            .map((s) => s.trim())
-            .filter(Boolean);
-        if (items.length === 0) {
-            setShowBulkPaste(false);
-            return;
-        }
+        const items = bulkText.split(/[\n,]+/).map((s) => s.trim()).filter(Boolean);
+        if (!items.length) return setShowBulkPaste(false);
         const existing = new Set(stt.keyterms || []);
         const next = [...(stt.keyterms || [])];
         for (const item of items) {
-            let normalized = item;
+            let norm = item;
             if (!supportsBoost && item.includes(':')) {
                 const idx = item.lastIndexOf(':');
-                if (!Number.isNaN(Number(item.slice(idx + 1)))) {
-                    normalized = item.slice(0, idx).trim();
-                }
+                if (!Number.isNaN(Number(item.slice(idx + 1)))) norm = item.slice(0, idx).trim();
             }
-            if (normalized && !existing.has(normalized) && next.length < maxKeyterms) {
-                existing.add(normalized);
-                next.push(normalized);
+            if (norm && !existing.has(norm) && next.length < maxKeyterms) {
+                existing.add(norm);
+                next.push(norm);
             }
         }
         updateSection('stt', { keyterms: next });
         setBulkText('');
         setShowBulkPaste(false);
-        showMessage('success', `נוספו מילות מפתח (סה״כ ${next.length}/${maxKeyterms}).`);
     };
 
-    const handleApplyKeywordPreset = (presetKey) => {
-        const preset = keywordPresets[presetKey];
-        if (!preset) return;
-        updateSection('stt', { keyterms: [...(preset.keyterms || [])].slice(0, maxKeyterms) });
-        showMessage('info', `נטען סט מילות מפתח: ${preset.label}`);
+    // Ignore phrases handlers
+    const ignoreList = config.barge_in.ignore_phrases || [];
+    const handleAddIgnorePhrase = () => {
+        const raw = newIgnorePhrase.trim();
+        if (!raw) return;
+        if (ignoreList.includes(raw)) {
+            setNewIgnorePhrase('');
+            return;
+        }
+        updateSection('barge_in', { ignore_phrases: [...ignoreList, raw] });
+        setNewIgnorePhrase('');
+    };
+
+    const handleApplyIgnoreBulk = () => {
+        const items = ignoreBulkText.split(/[\n,]+/).map((s) => s.trim()).filter(Boolean);
+        if (!items.length) return setShowIgnoreBulk(false);
+        const merged = Array.from(new Set([...ignoreList, ...items]));
+        updateSection('barge_in', { ignore_phrases: merged });
+        setIgnoreBulkText('');
+        setShowIgnoreBulk(false);
     };
 
     const handleAddReplaceRule = () => {
@@ -279,9 +438,8 @@ const PipelineManager = ({ onNavigateTab }) => {
         const t = replaceTo.trim();
         if (!f || !t) return;
         const rule = `${f}:${t}`;
-        const cur = stt.replace_rules || [];
-        if (!cur.includes(rule)) {
-            updateSection('stt', { replace_rules: [...cur, rule] });
+        if (!(stt.replace_rules || []).includes(rule)) {
+            updateSection('stt', { replace_rules: [...(stt.replace_rules || []), rule] });
         }
         setReplaceFrom('');
         setReplaceTo('');
@@ -289,9 +447,7 @@ const PipelineManager = ({ onNavigateTab }) => {
 
     const handleApplySpeedPreset = (preset) => {
         updateSection('turn_taking', preset.turn_taking || {});
-        if (preset.stt_patch) {
-            updateSection('stt', preset.stt_patch);
-        }
+        if (preset.stt_patch) updateSection('stt', preset.stt_patch);
         showMessage('info', `הוחל פרופיל מהירות: ${preset.label}`);
     };
 
@@ -301,7 +457,7 @@ const PipelineManager = ({ onNavigateTab }) => {
         try {
             const res = await callsApi.testSTTSetting({ stt: config.stt });
             setSttTestResult(res);
-            showMessage('success', `✅ חיבור ${res.provider} (${res.model}) אומת בלייב תוך ${res.latency_ms}ms!`);
+            showMessage('success', `✅ חיבור ${res.provider} (${res.model}) אומת בלייב תוך ${res.latency_ms}ms.`);
         } catch (err) {
             const errTxt = err?.response?.data?.error || err.message || 'בדיקת ה-STT נכשלה.';
             setSttTestResult({ ok: false, error: errTxt });
@@ -323,9 +479,10 @@ const PipelineManager = ({ onNavigateTab }) => {
             if (res.success) {
                 setSource(res.source || 'redis');
                 setProfiles(res.profiles || profiles);
-                if (res.config) setConfig(res.config);
+                if (res.env_defaults) setEnvDefaults(mergeWithDefault(res.env_defaults));
+                if (res.config) setConfig(mergeWithDefault(res.config));
                 setDirty(false);
-                showMessage('success', `✅ הגדרות ה-Pipeline לפרופיל "${currentProf?.label || profileId}" נשמרו והופעלו לשיחה הבאה!`);
+                showMessage('success', `✅ נשמר והופעל עבור "${currentProf?.label || profileId}" לשיחה הבאה.`);
             }
         } catch (err) {
             showMessage('error', `❌ שמירה נכשלה: ${err?.response?.data?.error || err.message}`);
@@ -335,19 +492,17 @@ const PipelineManager = ({ onNavigateTab }) => {
     };
 
     const handleReset = async () => {
-        if (!window.confirm('לאפס את הפרופיל הנוכחי לברירת המחדל (.env)?')) return;
+        if (!window.confirm('לאפס את הפרופיל הנוכחי לברירת המחדל הפעילה (.env / DB)?')) return;
         setSaving(true);
         try {
-            const res = await callsApi.updatePipelineSetting({
-                profile: profileId,
-                reset: true,
-            });
+            const res = await callsApi.updatePipelineSetting({ profile: profileId, reset: true });
             if (res.success) {
                 setSource('env');
                 setProfiles(res.profiles || profiles);
-                if (res.config) setConfig(res.config);
+                if (res.env_defaults) setEnvDefaults(mergeWithDefault(res.env_defaults));
+                if (res.config) setConfig(mergeWithDefault(res.config));
                 setDirty(false);
-                showMessage('success', 'ההגדרות אופסו לברירת המחדל (.env).');
+                showMessage('success', 'אופס לברירת המחדל הפעילה (.env / DB).');
             }
         } catch (err) {
             showMessage('error', 'שגיאה באיפוס ההגדרות.');
@@ -359,17 +514,10 @@ const PipelineManager = ({ onNavigateTab }) => {
     const handleCreateProfile = async () => {
         const cleanLabel = newProfileName.trim();
         if (!cleanLabel) return;
-        const slug = cleanLabel
-            .toLowerCase()
-            .replace(/[^a-z0-9_-]/g, '_')
-            .replace(/^_+|_+$/g, '') || `bot_${Date.now().toString(36)}`;
+        const slug = cleanLabel.toLowerCase().replace(/[^a-z0-9_-]/g, '_').replace(/^_+|_+$/g, '') || `bot_${Date.now().toString(36)}`;
         setSaving(true);
         try {
-            const res = await callsApi.updatePipelineSetting({
-                profile: slug,
-                profile_label: cleanLabel,
-                config,
-            });
+            const res = await callsApi.updatePipelineSetting({ profile: slug, profile_label: cleanLabel, config });
             if (res.success) {
                 setProfiles(res.profiles || []);
                 setProfileId(slug);
@@ -379,7 +527,7 @@ const PipelineManager = ({ onNavigateTab }) => {
                 setShowNewProfile(false);
                 showMessage('success', `✅ נוצר פרופיל בוט חדש: "${cleanLabel}"`);
             }
-        } catch (err) {
+        } catch {
             showMessage('error', 'שגיאה ביצירת פרופיל חדש.');
         } finally {
             setSaving(false);
@@ -389,14 +537,10 @@ const PipelineManager = ({ onNavigateTab }) => {
     const handleDeleteProfile = async () => {
         if (!window.confirm(`למחוק את הפרופיל "${profileId}"?`)) return;
         try {
-            const res = await callsApi.updatePipelineSetting({
-                profile: profileId,
-                delete_profile: true,
-            });
+            const res = await callsApi.updatePipelineSetting({ profile: profileId, delete_profile: true });
             if (res.success) {
                 setProfiles(res.profiles || []);
                 loadProfile('global');
-                showMessage('success', 'הפרופיל נמחק.');
             }
         } catch (err) {
             showMessage('error', err?.response?.data?.error || 'שגיאה במחיקת הפרופיל.');
@@ -422,17 +566,10 @@ const PipelineManager = ({ onNavigateTab }) => {
                 const parsed = JSON.parse(String(reader.result || '{}'));
                 const importedCfg = parsed.config || parsed;
                 if (!importedCfg.stt && !importedCfg.turn_taking) {
-                    showMessage('error', 'קובץ JSON לא תקין עבור הגדרות Pipeline.');
+                    showMessage('error', 'קובץ JSON לא תקין.');
                     return;
                 }
-                setConfig((prev) => ({
-                    stt: { ...prev.stt, ...(importedCfg.stt || {}) },
-                    turn_taking: { ...prev.turn_taking, ...(importedCfg.turn_taking || {}) },
-                    barge_in: { ...prev.barge_in, ...(importedCfg.barge_in || {}) },
-                    llm_pipeline: { ...prev.llm_pipeline, ...(importedCfg.llm_pipeline || {}) },
-                    tts_pipeline: { ...prev.tts_pipeline, ...(importedCfg.tts_pipeline || {}) },
-                    limits: { ...prev.limits, ...(importedCfg.limits || {}) },
-                }));
+                setConfig(mergeWithDefault(importedCfg));
                 setDirty(true);
                 showMessage('success', 'הקובץ יובא! לחץ "שמור והפעל" כדי להחיל.');
             } catch {
@@ -445,292 +582,289 @@ const PipelineManager = ({ onNavigateTab }) => {
 
     if (loading) {
         return (
-            <div style={{ padding: '3rem', textAlign: 'center', color: '#64748b' }}>
-                <Loader2 className="animate-spin" size={28} style={{ margin: '0 auto 12px' }} />
-                טוען את מרכז השליטה של ה-Pipeline...
+            <div style={{ padding: '4rem', textAlign: 'center', color: '#71717a' }}>
+                <Loader2 className="animate-spin" size={26} style={{ margin: '0 auto 10px' }} />
+                טוען את הגדרות ה-Pipeline...
             </div>
         );
     }
 
     const activeProfileMeta = profiles.find((p) => p.id === profileId);
-    const stdBanner = getStandardBanner();
     const keytermsList = stt.keyterms || [];
     const pct = Math.min(100, Math.round((keytermsList.length / maxKeyterms) * 100));
 
-    const stages = [
-        {
-            id: 'stt',
-            num: '1',
-            title: 'תמלול (STT) ו-Keywords',
-            icon: Mic,
-            summary: `${isDeepgram ? `Deepgram ${stt.deepgram_model}` : `Scribe ${stt.scribe_model_id}`} · ${keytermsList.length} מילות מפתח`,
-            accent: '#2563eb',
+    // ElevenLabs clean design tokens
+    const el = {
+        page: {
+            direction: 'rtl',
+            backgroundColor: '#fafafa',
+            borderRadius: '14px',
+            padding: '1.5rem',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '1.25rem',
+            color: '#09090b',
         },
-        {
-            id: 'turn_taking',
-            num: '2',
-            title: 'תזמון שיחה וספקולציה',
-            icon: Clock,
-            summary: `שחרור ${config.turn_taking.early_release_silence_sec}s · ספקולציה ${config.turn_taking.speculative_turn ? 'ON' : 'OFF'}`,
-            accent: '#7c3aed',
-        },
-        {
-            id: 'barge_in',
-            num: '3',
-            title: 'קטיעה ואודיו (Barge-In / VAD)',
-            icon: Shield,
-            summary: `${config.barge_in.enabled ? `פעיל (${config.barge_in.protect_words < 0 ? 'כל התשובה' : `${config.barge_in.protect_words} מילים`})` : 'כבוי'} · RMS ${config.barge_in.voice_rms}`,
-            accent: '#059669',
-        },
-        {
-            id: 'llm_tts',
-            num: '4',
-            title: 'זרימת LLM / TTS וגבולות',
-            icon: Cpu,
-            summary: `${activeLlm?.provider || 'LLM'}/${activeLlm?.model || ''} ➔ ${activeTts?.provider || 'TTS'}`,
-            accent: '#d97706',
-        },
-    ];
-
-    const s = {
-        wrap: { direction: 'rtl', padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1.25rem' },
-        hero: {
-            background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 65%, #1e1b4b 100%)',
-            color: '#fff',
-            borderRadius: '16px',
-            padding: '1.35rem 1.5rem',
+        headerCard: {
+            backgroundColor: '#ffffff',
+            border: '1px solid #e4e4e7',
+            borderRadius: '14px',
+            padding: '1.25rem 1.4rem',
             display: 'flex',
             flexDirection: 'column',
             gap: '1rem',
-            boxShadow: '0 10px 25px -5px rgba(15, 23, 42, 0.25)',
         },
-        heroTop: {
+        card: {
+            backgroundColor: '#ffffff',
+            border: '1px solid #e4e4e7',
+            borderRadius: '14px',
+            padding: '1.35rem',
             display: 'flex',
-            flexWrap: 'wrap',
-            justifyContent: 'space-between',
-            alignItems: 'center',
+            flexDirection: 'column',
             gap: '1rem',
         },
-        badge: (mode) => ({
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: '6px',
-            padding: '4px 11px',
-            borderRadius: '999px',
-            fontSize: '0.75rem',
-            fontWeight: 600,
-            backgroundColor: mode === 'redis' ? 'rgba(16, 185, 129, 0.2)' : mode === 'global_inherited' ? 'rgba(59, 130, 246, 0.25)' : 'rgba(148, 163, 184, 0.25)',
-            color: mode === 'redis' ? '#6ee7b7' : mode === 'global_inherited' ? '#93c5fd' : '#cbd5e1',
+        fieldCard: (modified) => ({
+            backgroundColor: modified ? '#fefce8' : '#fafafa',
+            border: modified ? '1px solid #fde047' : '1px solid #e4e4e7',
+            borderRadius: '11px',
+            padding: '0.9rem 1rem',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '7px',
         }),
         btnPrimary: {
             display: 'inline-flex',
             alignItems: 'center',
             gap: '7px',
             padding: '9px 18px',
-            borderRadius: '10px',
+            borderRadius: '9px',
             border: 'none',
-            background: 'linear-gradient(135deg, #2563eb 0%, #4f46e5 100%)',
-            color: '#fff',
-            fontWeight: 700,
-            fontSize: '0.88rem',
+            backgroundColor: '#111827',
+            color: '#ffffff',
+            fontWeight: 600,
+            fontSize: '0.85rem',
             cursor: 'pointer',
-            boxShadow: '0 4px 12px rgba(37, 99, 235, 0.35)',
         },
-        btnGhostDark: {
+        btnSecondary: {
             display: 'inline-flex',
             alignItems: 'center',
             gap: '6px',
             padding: '8px 13px',
             borderRadius: '9px',
-            border: '1px solid rgba(255,255,255,0.2)',
-            backgroundColor: 'rgba(255,255,255,0.08)',
-            color: '#f8fafc',
+            border: '1px solid #e4e4e7',
+            backgroundColor: '#ffffff',
+            color: '#18181b',
             fontWeight: 600,
             fontSize: '0.82rem',
             cursor: 'pointer',
         },
-        profileBar: {
-            display: 'flex',
-            flexWrap: 'wrap',
-            alignItems: 'center',
-            gap: '8px',
-            paddingTop: '0.75rem',
-            borderTop: '1px solid rgba(255,255,255,0.12)',
-        },
-        profileChip: (active) => ({
+        pill: (active) => ({
             padding: '6px 13px',
             borderRadius: '999px',
-            border: active ? '1.5px solid #60a5fa' : '1px solid rgba(255,255,255,0.2)',
-            backgroundColor: active ? 'rgba(37, 99, 235, 0.35)' : 'rgba(255,255,255,0.06)',
-            color: '#fff',
+            border: active ? '1px solid #18181b' : '1px solid #e4e4e7',
+            backgroundColor: active ? '#18181b' : '#ffffff',
+            color: active ? '#ffffff' : '#52525b',
+            fontWeight: active ? 600 : 500,
+            fontSize: '0.81rem',
+            cursor: 'pointer',
+        }),
+        tabBtn: (active) => ({
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '8px',
+            padding: '9px 15px',
+            borderRadius: '10px',
+            border: active ? '1px solid #18181b' : '1px solid transparent',
+            backgroundColor: active ? '#ffffff' : 'transparent',
+            color: active ? '#09090b' : '#71717a',
             fontWeight: active ? 700 : 500,
-            fontSize: '0.82rem',
+            fontSize: '0.85rem',
             cursor: 'pointer',
+            boxShadow: active ? '0 1px 3px rgba(0,0,0,0.06)' : 'none',
         }),
-        pipelineGrid: {
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
-            gap: '0.85rem',
-        },
-        stageCard: (active, accent) => ({
-            padding: '1rem 1.1rem',
-            borderRadius: '14px',
-            border: active ? `2px solid ${accent}` : '1px solid #e2e8f0',
-            backgroundColor: active ? '#f8fafc' : '#fff',
-            cursor: 'pointer',
-            textAlign: 'right',
-            transition: 'all 0.15s ease',
-            boxShadow: active ? `0 6px 18px -4px ${accent}28` : '0 1px 3px rgba(0,0,0,0.04)',
-        }),
-        panel: {
-            backgroundColor: '#fff',
-            border: '1px solid #e2e8f0',
-            borderRadius: '14px',
-            padding: '1.35rem',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: '1.15rem',
-        },
-        fieldGrid: {
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
-            gap: '1rem',
-        },
-        fieldBox: {
-            padding: '0.9rem 1rem',
-            borderRadius: '11px',
-            border: '1px solid #e2e8f0',
-            backgroundColor: '#f8fafc',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: '6px',
-        },
         input: {
             width: '100%',
             padding: '8px 10px',
             borderRadius: '8px',
-            border: '1px solid #cbd5e1',
-            backgroundColor: '#fff',
-            fontSize: '0.88rem',
+            border: '1px solid #d4d4d8',
+            backgroundColor: '#ffffff',
+            fontSize: '0.86rem',
+            color: '#09090b',
             boxSizing: 'border-box',
         },
-        label: { fontSize: '0.83rem', fontWeight: 700, color: '#1e293b' },
-        hint: { fontSize: '0.75rem', color: '#64748b', lineHeight: 1.4 },
+        grid: {
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))',
+            gap: '0.9rem',
+        },
     };
 
-    const renderToggle = (checked, onChange, label, hint) => (
-        <label style={{ ...s.fieldBox, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer' }}>
-            <div>
-                <div style={s.label}>{label}</div>
-                {hint && <div style={s.hint}>{hint}</div>}
+    const renderNumberControl = (section, key, label, hint, { min = 0, max = 100, step = 0.1, unit = '' } = {}) => {
+        const val = config[section]?.[key];
+        const defVal = envDefaults[section]?.[key];
+        const isModified = defVal !== undefined && Math.abs(Number(val) - Number(defVal)) > 0.0001;
+        return (
+            <div style={el.fieldCard(isModified)}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '6px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                        <span style={{ fontSize: '0.84rem', fontWeight: 700, color: '#18181b' }}>{label}</span>
+                        <InfoTip helpKey={key} defaultVal={`${defVal}${unit}`} />
+                    </div>
+                    <span style={{ fontSize: '0.82rem', fontWeight: 700, color: '#09090b', direction: 'ltr', backgroundColor: '#fff', padding: '2px 8px', borderRadius: '6px', border: '1px solid #e4e4e7' }}>
+                        {val}{unit}
+                    </span>
+                </div>
+                <input
+                    type="range"
+                    min={min}
+                    max={max}
+                    step={step}
+                    value={Number(val ?? min)}
+                    onChange={(e) => updateSection(section, { [key]: step >= 1 ? parseInt(e.target.value, 10) : parseFloat(e.target.value) })}
+                    style={{ width: '100%', accentColor: '#18181b' }}
+                />
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px' }}>
+                    <input
+                        type="number"
+                        min={min}
+                        max={max}
+                        step={step}
+                        value={val ?? min}
+                        onChange={(e) => {
+                            const v = step >= 1 ? parseInt(e.target.value, 10) : parseFloat(e.target.value);
+                            if (!Number.isNaN(v)) updateSection(section, { [key]: v });
+                        }}
+                        style={{ ...el.input, width: '92px', padding: '4px 8px', fontSize: '0.8rem', direction: 'ltr' }}
+                    />
+                    <span style={{ fontSize: '0.73rem', color: isModified ? '#b45309' : '#71717a', fontWeight: isModified ? 600 : 400 }}>
+                        {isModified ? `שונה (ברירת מחדל: ${defVal}${unit})` : `ברירת מחדל: ${defVal}${unit}`}
+                    </span>
+                </div>
+                {hint && <div style={{ fontSize: '0.74rem', color: '#71717a', lineHeight: 1.4 }}>{hint}</div>}
             </div>
-            <input
-                type="checkbox"
-                checked={!!checked}
-                onChange={(e) => onChange(e.target.checked)}
-                style={{ width: '18px', height: '18px', accentColor: '#2563eb', cursor: 'pointer', flexShrink: 0 }}
-            />
-        </label>
-    );
+        );
+    };
 
-    const renderNumberField = (label, hint, value, onChange, { min = 0, max = 100, step = 0.1, unit = '' } = {}) => (
-        <div style={s.fieldBox}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={s.label}>{label}</span>
-                <span style={{ fontSize: '0.82rem', fontWeight: 700, color: '#2563eb', direction: 'ltr' }}>
-                    {value}{unit}
-                </span>
-            </div>
-            <input
-                type="range"
-                min={min}
-                max={max}
-                step={step}
-                value={Number(value ?? min)}
-                onChange={(e) => onChange(step >= 1 ? parseInt(e.target.value, 10) : parseFloat(e.target.value))}
-                style={{ width: '100%', accentColor: '#2563eb' }}
-            />
-            <input
-                type="number"
-                min={min}
-                max={max}
-                step={step}
-                value={value ?? min}
-                onChange={(e) => {
-                    const v = step >= 1 ? parseInt(e.target.value, 10) : parseFloat(e.target.value);
-                    if (!Number.isNaN(v)) onChange(v);
+    const renderToggleControl = (section, key, label, hint) => {
+        const checked = !!config[section]?.[key];
+        const defVal = !!envDefaults[section]?.[key];
+        const isModified = checked !== defVal;
+        return (
+            <label style={{ ...el.fieldCard(isModified), flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer' }}>
+                <div style={{ paddingLeft: '10px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <span style={{ fontSize: '0.84rem', fontWeight: 700, color: '#18181b' }}>{label}</span>
+                        {isModified && <span style={{ fontSize: '0.7rem', color: '#b45309', fontWeight: 600 }}>(שונה)</span>}
+                    </div>
+                    {hint && <div style={{ fontSize: '0.74rem', color: '#71717a', marginTop: '2px' }}>{hint}</div>}
+                </div>
+                <input
+                    type="checkbox"
+                    checked={checked}
+                    onChange={(e) => updateSection(section, { [key]: e.target.checked })}
+                    style={{ width: '18px', height: '18px', accentColor: '#18181b', cursor: 'pointer', flexShrink: 0 }}
+                />
+            </label>
+        );
+    };
+
+    const renderAdvancedAccordion = (children) => (
+        <div style={{ border: '1px solid #e4e4e7', borderRadius: '12px', backgroundColor: '#fafafa', overflow: 'hidden' }}>
+            <button
+                type="button"
+                onClick={() => setShowAdvanced((v) => !v)}
+                style={{
+                    width: '100%',
+                    padding: '11px 15px',
+                    border: 'none',
+                    backgroundColor: showAdvanced ? '#f4f4f5' : '#fafafa',
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    cursor: 'pointer',
+                    textAlign: 'right',
                 }}
-                style={{ ...s.input, direction: 'ltr', padding: '5px 8px', fontSize: '0.82rem' }}
-            />
-            {hint && <div style={s.hint}>{hint}</div>}
+            >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <AlertTriangle size={16} color="#d97706" />
+                    <span style={{ fontSize: '0.86rem', fontWeight: 700, color: '#27272a' }}>
+                        הגדרות מתקדמות (מומלץ לא לגעת אלא אם צריך כוונון עדין)
+                    </span>
+                </div>
+                {showAdvanced ? <ChevronUp size={18} color="#52525b" /> : <ChevronDown size={18} color="#52525b" />}
+            </button>
+            {showAdvanced && (
+                <div style={{ padding: '1rem', borderTop: '1px solid #e4e4e7', backgroundColor: '#ffffff', display: 'flex', flexDirection: 'column', gap: '0.9rem' }}>
+                    <div style={{ padding: '8px 12px', borderRadius: '8px', backgroundColor: '#fffbeb', border: '1px solid #fde68a', color: '#92400e', fontSize: '0.78rem' }}>
+                        שים לב: הפרמטרים כאן מכוונים כבר לפי ה-<code>.env</code> של השרת. רחף או לחץ על סימן ה-<strong>?</strong> ליד כל שדה כדי להבין מה שינוי יעשה.
+                    </div>
+                    {children}
+                </div>
+            )}
         </div>
     );
 
     return (
-        <div style={s.wrap}>
-            {/* Top Hero & Bot Profile Selector */}
-            <div style={s.hero}>
-                <div style={s.heroTop}>
+        <div style={el.page}>
+            {/* Header + Bot Profile Selector */}
+            <div style={el.headerCard}>
+                <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: '1rem' }}>
                     <div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
-                            <Sliders size={22} color="#60a5fa" />
-                            <h2 style={{ margin: 0, fontSize: '1.35rem', fontWeight: 800 }}>
-                                מרכז שליטה ב-Pipeline ותמלול (STT)
+                            <Sliders size={20} color="#18181b" />
+                            <h2 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 800 }}>
+                                הגדרות Pipeline ותמלול (Agent Controls)
                             </h2>
-                            <span style={s.badge(source)}>
-                                {source === 'redis' ? 'Redis Live' : source === 'global_inherited' ? 'ירושה מ-Global' : 'ברירת מחדל (.env)'}
+                            <span style={{
+                                padding: '3px 10px',
+                                borderRadius: '999px',
+                                fontSize: '0.74rem',
+                                fontWeight: 600,
+                                backgroundColor: source === 'redis' ? '#ecfdf5' : '#f4f4f5',
+                                color: source === 'redis' ? '#047857' : '#52525b',
+                                border: `1px solid ${source === 'redis' ? '#a7f3d0' : '#e4e4e7'}`,
+                            }}>
+                                {source === 'redis' ? '● פעיל מ-Redis' : source === 'global_inherited' ? 'ירושה מ-Global' : '● ברירת מחדל (.env / DB)'}
                             </span>
                             {dirty && (
-                                <span style={{ ...s.badge('dirty'), backgroundColor: 'rgba(245, 158, 11, 0.25)', color: '#fcd34d' }}>
+                                <span style={{ padding: '3px 10px', borderRadius: '999px', fontSize: '0.74rem', fontWeight: 600, backgroundColor: '#fef3c7', color: '#b45309' }}>
                                     ● שינויים לא שמורים
                                 </span>
                             )}
                         </div>
-                        <div style={{ fontSize: '0.83rem', color: '#cbd5e1', marginTop: '4px' }}>
-                            שליטה מלאה על מנוע התמלול, Keywords לפי תקן ספק, תזמון תגובה, קטיעה (Barge-In) וזרימת שיחה — לכל בוט בנפרד.
+                        <div style={{ fontSize: '0.82rem', color: '#71717a', marginTop: '4px' }}>
+                            כל הערכים ההתחלתיים נמשכים אוטומטית מה-<code>.env</code> ומה-DB הפעיל. לחץ על <strong>?</strong> ליד כל הגדרה להסבר ברור.
                         </div>
                     </div>
 
                     <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
-                        <button type="button" onClick={handleExportJson} style={s.btnGhostDark} title="ייצוא הגדרות לבוט אחר">
-                            <Download size={15} />
-                            ייצוא JSON
+                        <button type="button" onClick={handleExportJson} style={el.btnSecondary} title="ייצוא לבוט אחר">
+                            <Download size={14} /> ייצוא
                         </button>
-                        <button type="button" onClick={() => importInputRef.current?.click()} style={s.btnGhostDark} title="ייבוא הגדרות מקובץ">
-                            <Upload size={15} />
-                            ייבוא
+                        <button type="button" onClick={() => importInputRef.current?.click()} style={el.btnSecondary} title="ייבוא מקובץ">
+                            <Upload size={14} /> ייבוא
                         </button>
                         <input ref={importInputRef} type="file" accept=".json" style={{ display: 'none' }} onChange={handleImportJson} />
-                        <button type="button" onClick={handleReset} disabled={saving} style={s.btnGhostDark}>
-                            <RotateCcw size={15} />
-                            איפוס
+                        <button type="button" onClick={handleReset} disabled={saving} style={el.btnSecondary}>
+                            <RotateCcw size={14} /> איפוס ל-.env
                         </button>
-                        <button type="button" onClick={handleSave} disabled={saving} style={s.btnPrimary}>
-                            {saving ? <Loader2 className="animate-spin" size={16} /> : <Save size={16} />}
-                            {saving ? 'שומר...' : 'שמור והפעל לשיחה הבאה'}
+                        <button type="button" onClick={handleSave} disabled={saving} style={el.btnPrimary}>
+                            {saving ? <Loader2 className="animate-spin" size={15} /> : <Save size={15} />}
+                            {saving ? 'שומר...' : 'שמור והפעל'}
                         </button>
                     </div>
                 </div>
 
-                {/* Bot Profile Switcher */}
-                <div style={s.profileBar}>
-                    <span style={{ fontSize: '0.8rem', fontWeight: 700, color: '#94a3b8' }}>פרופיל בוט:</span>
+                {/* Bot Profile Bar */}
+                <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '8px', paddingTop: '0.85rem', borderTop: '1px solid #f4f4f5' }}>
+                    <span style={{ fontSize: '0.8rem', fontWeight: 700, color: '#71717a' }}>בוט פעיל:</span>
                     {profiles.map((p) => (
-                        <button
-                            key={p.id}
-                            type="button"
-                            onClick={() => loadProfile(p.id)}
-                            style={s.profileChip(profileId === p.id)}
-                        >
+                        <button key={p.id} type="button" onClick={() => loadProfile(p.id)} style={el.pill(profileId === p.id)}>
                             {p.label} {p.has_override ? '✓' : ''}
                         </button>
                     ))}
                     {!showNewProfile ? (
-                        <button
-                            type="button"
-                            onClick={() => setShowNewProfile(true)}
-                            style={{ ...s.profileChip(false), borderStyle: 'dashed', color: '#93c5fd' }}
-                        >
+                        <button type="button" onClick={() => setShowNewProfile(true)} style={{ ...el.pill(false), borderStyle: 'dashed' }}>
                             <Plus size={13} style={{ display: 'inline', verticalAlign: 'middle', marginLeft: 4 }} />
                             בוט חדש
                         </button>
@@ -738,114 +872,69 @@ const PipelineManager = ({ onNavigateTab }) => {
                         <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
                             <input
                                 type="text"
-                                placeholder="שם הבוט (למשל: נדל״ן)"
+                                placeholder="שם הבוט..."
                                 value={newProfileName}
                                 onChange={(e) => setNewProfileName(e.target.value)}
-                                style={{ padding: '5px 10px', borderRadius: '8px', border: 'none', fontSize: '0.82rem', color: '#0f172a' }}
+                                style={{ ...el.input, width: '160px', padding: '5px 9px', fontSize: '0.8rem' }}
                             />
-                            <button type="button" onClick={handleCreateProfile} style={{ ...s.btnPrimary, padding: '6px 12px', fontSize: '0.78rem' }}>
-                                צור
-                            </button>
-                            <button type="button" onClick={() => setShowNewProfile(false)} style={{ ...s.btnGhostDark, padding: '6px 10px', fontSize: '0.78rem' }}>
-                                ביטול
-                            </button>
+                            <button type="button" onClick={handleCreateProfile} style={{ ...el.btnPrimary, padding: '6px 12px', fontSize: '0.78rem' }}>צור</button>
+                            <button type="button" onClick={() => setShowNewProfile(false)} style={{ ...el.btnSecondary, padding: '6px 10px', fontSize: '0.78rem' }}>ביטול</button>
                         </div>
                     )}
                     {activeProfileMeta && !activeProfileMeta.builtin && (
-                        <button
-                            type="button"
-                            onClick={handleDeleteProfile}
-                            style={{ ...s.btnGhostDark, color: '#fca5a5', borderColor: 'rgba(248,113,113,0.4)', marginRight: 'auto' }}
-                        >
-                            <Trash2 size={14} />
-                            מחק פרופיל
+                        <button type="button" onClick={handleDeleteProfile} style={{ ...el.btnSecondary, color: '#dc2626', marginRight: 'auto' }}>
+                            <Trash2 size={14} /> מחק פרופיל
                         </button>
                     )}
                 </div>
             </div>
 
-            {/* Toast Notification */}
+            {/* Toast */}
             {toast && (
                 <div style={{
-                    padding: '12px 16px',
+                    padding: '11px 15px',
                     borderRadius: '10px',
                     display: 'flex',
                     alignItems: 'center',
-                    gap: '10px',
-                    fontSize: '0.88rem',
+                    gap: '9px',
+                    fontSize: '0.86rem',
                     fontWeight: 600,
-                    backgroundColor: toast.type === 'success' ? '#ecfdf5' : toast.type === 'error' ? '#fef2f2' : '#eff6ff',
-                    color: toast.type === 'success' ? '#065f46' : toast.type === 'error' ? '#991b1b' : '#1e40af',
-                    border: `1px solid ${toast.type === 'success' ? '#a7f3d0' : toast.type === 'error' ? '#fecaca' : '#bfdbfe'}`,
+                    backgroundColor: toast.type === 'success' ? '#ecfdf5' : toast.type === 'error' ? '#fef2f2' : '#f4f4f5',
+                    color: toast.type === 'success' ? '#065f46' : toast.type === 'error' ? '#991b1b' : '#18181b',
+                    border: `1px solid ${toast.type === 'success' ? '#a7f3d0' : toast.type === 'error' ? '#fecaca' : '#e4e4e7'}`,
                 }}>
-                    {toast.type === 'success' ? <CheckCircle2 size={18} /> : <AlertCircle size={18} />}
+                    {toast.type === 'success' ? <CheckCircle2 size={17} /> : <AlertCircle size={17} />}
                     <span>{toast.text}</span>
                 </div>
             )}
 
-            {/* 4-Stage Visual Pipeline Map */}
-            <div style={s.pipelineGrid}>
-                {stages.map((st) => {
-                    const Icon = st.icon;
-                    const active = activeStage === st.id;
-                    return (
-                        <button
-                            key={st.id}
-                            type="button"
-                            onClick={() => setActiveStage(st.id)}
-                            style={s.stageCard(active, st.accent)}
-                        >
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
-                                <span style={{
-                                    display: 'inline-flex',
-                                    alignItems: 'center',
-                                    gap: '6px',
-                                    fontSize: '0.9rem',
-                                    fontWeight: 800,
-                                    color: active ? st.accent : '#0f172a',
-                                }}>
-                                    <Icon size={17} />
-                                    {st.num}. {st.title}
-                                </span>
-                            </div>
-                            <div style={{ fontSize: '0.78rem', color: '#475569', fontWeight: 500 }}>
-                                {st.summary}
-                            </div>
-                        </button>
-                    );
-                })}
+            {/* ElevenLabs-style Navigation Tabs */}
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', padding: '5px', backgroundColor: '#f4f4f5', borderRadius: '12px', border: '1px solid #e4e4e7' }}>
+                <button type="button" onClick={() => { setActiveStage('stt'); setShowAdvanced(false); }} style={el.tabBtn(activeStage === 'stt')}>
+                    <Mic size={16} /> 1. תמלול (STT) ו-Keywords
+                </button>
+                <button type="button" onClick={() => { setActiveStage('barge_in'); setShowAdvanced(false); }} style={el.tabBtn(activeStage === 'barge_in')}>
+                    <MessageSquareOff size={16} /> 2. קטיעה ומילים להתעלמות
+                </button>
+                <button type="button" onClick={() => { setActiveStage('turn_taking'); setShowAdvanced(false); }} style={el.tabBtn(activeStage === 'turn_taking')}>
+                    <Clock size={16} /> 3. קצב שיחה ותזמון
+                </button>
+                <button type="button" onClick={() => { setActiveStage('llm_tts'); setShowAdvanced(false); }} style={el.tabBtn(activeStage === 'llm_tts')}>
+                    <Cpu size={16} /> 4. מודל, קול וגבולות
+                </button>
             </div>
 
-            {/* STAGE 1: STT & KEYWORDS */}
+            {/* TAB 1: STT & KEYWORDS */}
             {activeStage === 'stt' && (
-                <div style={s.panel}>
+                <div style={el.card}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
                         <div>
-                            <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 800, color: '#0f172a' }}>
-                                בחירת מנוע תמלול (STT) והגדרות מודל
-                            </h3>
-                            <div style={s.hint}>בחר בין Deepgram (מהירות יציבה + Nova-3/Nova-2) לבין ElevenLabs Scribe Realtime</div>
+                            <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 800 }}>מנוע תמלול (Speech-to-Text)</h3>
+                            <div style={{ fontSize: '0.8rem', color: '#71717a' }}>בחר ספק תמלול, מודל, ומונחי מפתח לדיוק בשמות ומותגים.</div>
                         </div>
-                        <button
-                            type="button"
-                            onClick={handleTestSTT}
-                            disabled={testingStt}
-                            style={{
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                gap: '7px',
-                                padding: '8px 16px',
-                                borderRadius: '9px',
-                                border: '1px solid #2563eb',
-                                backgroundColor: '#eff6ff',
-                                color: '#1d4ed8',
-                                fontWeight: 700,
-                                fontSize: '0.84rem',
-                                cursor: 'pointer',
-                            }}
-                        >
-                            {testingStt ? <Loader2 className="animate-spin" size={15} /> : <Play size={15} />}
-                            {testingStt ? 'בודק חיבור WebSocket...' : 'בדוק חיבור STT בלייב'}
+                        <button type="button" onClick={handleTestSTT} disabled={testingStt} style={el.btnSecondary}>
+                            {testingStt ? <Loader2 className="animate-spin" size={14} /> : <Play size={14} />}
+                            {testingStt ? 'בודק חיבור...' : 'בדוק חיבור STT בלייב'}
                         </button>
                     </div>
 
@@ -853,30 +942,22 @@ const PipelineManager = ({ onNavigateTab }) => {
                         <div style={{
                             padding: '10px 14px',
                             borderRadius: '10px',
-                            fontSize: '0.83rem',
-                            backgroundColor: sttTestResult.ok ? '#f0fdf4' : '#fef2f2',
-                            border: `1px solid ${sttTestResult.ok ? '#bbf7d0' : '#fecaca'}`,
-                            color: sttTestResult.ok ? '#166534' : '#991b1b',
+                            fontSize: '0.82rem',
+                            backgroundColor: sttTestResult.ok ? '#ecfdf5' : '#fef2f2',
+                            border: `1px solid ${sttTestResult.ok ? '#a7f3d0' : '#fecaca'}`,
+                            color: sttTestResult.ok ? '#065f46' : '#991b1b',
                         }}>
                             {sttTestResult.ok
-                                ? `✅ חיבור WebSocket תקין! ספק: ${sttTestResult.provider} · מודל: ${sttTestResult.model} · שיהוי לחיצת יד: ${sttTestResult.latency_ms}ms · תקן מונחים: ${sttTestResult.keyterm_mode} (${sttTestResult.keyterm_count} מונחים)`
-                                : `❌ שגיאה: ${sttTestResult.error}`}
+                                ? `✅ חיבור תקין! ${sttTestResult.provider} / ${sttTestResult.model} · ${sttTestResult.latency_ms}ms · תקן: ${sttTestResult.keyterm_mode} (${sttTestResult.keyterm_count} מונחים)`
+                                : `❌ ${sttTestResult.error}`}
                         </div>
                     )}
 
-                    {/* Provider Cards */}
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '1rem' }}>
+                    {/* Provider selector */}
+                    <div style={el.grid}>
                         {[
-                            {
-                                id: 'deepgram',
-                                title: 'Deepgram STT',
-                                sub: 'Nova-3 / Nova-2 · שליטה מלאה ב-Endpointing ו-Keywords',
-                            },
-                            {
-                                id: 'scribe_realtime',
-                                title: 'ElevenLabs Scribe Realtime',
-                                sub: 'scribe_v3_live / scribe_v2_realtime · זיהוי עברית טבעי + VAD',
-                            },
+                            { id: 'deepgram', title: 'Deepgram', sub: 'Nova-3 / Nova-2 · מהיר, יציב, תומך keyterm / keywords' },
+                            { id: 'scribe_realtime', title: 'ElevenLabs Scribe Realtime', sub: 'scribe_v3_live · זיהוי עברית טבעי + עד 50 keyterms' },
                         ].map((prov) => {
                             const spec = sttProviders.find((p) => p.id === prov.id);
                             const active = stt.provider === prov.id;
@@ -888,8 +969,8 @@ const PipelineManager = ({ onNavigateTab }) => {
                                     style={{
                                         padding: '1rem',
                                         borderRadius: '12px',
-                                        border: active ? '2px solid #2563eb' : '1px solid #cbd5e1',
-                                        backgroundColor: active ? '#eff6ff' : '#fff',
+                                        border: active ? '2px solid #18181b' : '1px solid #e4e4e7',
+                                        backgroundColor: active ? '#fafafa' : '#fff',
                                         cursor: 'pointer',
                                         display: 'flex',
                                         justifyContent: 'space-between',
@@ -897,16 +978,16 @@ const PipelineManager = ({ onNavigateTab }) => {
                                     }}
                                 >
                                     <div>
-                                        <div style={{ fontWeight: 800, fontSize: '0.98rem', color: '#0f172a' }}>{prov.title}</div>
-                                        <div style={{ fontSize: '0.78rem', color: '#475569', marginTop: '3px' }}>{prov.sub}</div>
+                                        <div style={{ fontWeight: 700, fontSize: '0.95rem' }}>{prov.title}</div>
+                                        <div style={{ fontSize: '0.76rem', color: '#71717a', marginTop: '3px' }}>{prov.sub}</div>
                                     </div>
                                     <span style={{
                                         padding: '3px 9px',
                                         borderRadius: '999px',
-                                        fontSize: '0.72rem',
-                                        fontWeight: 700,
-                                        backgroundColor: hasKey ? '#dcfce7' : '#fee2e2',
-                                        color: hasKey ? '#166534' : '#991b1b',
+                                        fontSize: '0.71rem',
+                                        fontWeight: 600,
+                                        backgroundColor: hasKey ? '#ecfdf5' : '#fef2f2',
+                                        color: hasKey ? '#047857' : '#b91c1c',
                                     }}>
                                         {hasKey ? 'Key פעיל' : 'חסר Key'}
                                     </span>
@@ -915,464 +996,343 @@ const PipelineManager = ({ onNavigateTab }) => {
                         })}
                     </div>
 
-                    {/* Provider-specific Model & Timing Controls */}
-                    {isDeepgram ? (
-                        <div style={s.fieldGrid}>
-                            <div style={s.fieldBox}>
-                                <label style={s.label}>מודל Deepgram</label>
-                                <select
-                                    value={stt.deepgram_model}
-                                    onChange={(e) => updateSection('stt', { deepgram_model: e.target.value })}
-                                    style={s.input}
-                                >
-                                    {(currentProvSpec?.models || ['nova-3', 'nova-3-general', 'nova-2', 'nova-2-phonecall']).map((m) => (
-                                        <option key={m} value={m}>{m}</option>
-                                    ))}
-                                </select>
-                                <div style={s.hint}>Nova-3 משתמש ב-keyterm; Nova-2 תומך ב-keywords עם :boost.</div>
-                            </div>
-
-                            <div style={s.fieldBox}>
-                                <label style={s.label}>שפה (Language)</label>
-                                <select
-                                    value={stt.deepgram_language}
-                                    onChange={(e) => updateSection('stt', { deepgram_language: e.target.value })}
-                                    style={s.input}
-                                >
-                                    <option value="he">עברית (he)</option>
-                                    <option value="en">אנגלית (en)</option>
-                                    <option value="multi">רב-לשוני (multi)</option>
-                                    <option value="ru">רוסית (ru)</option>
-                                    <option value="ar">ערבית (ar)</option>
-                                </select>
-                                <div style={s.hint}>ברירת המחדל לשיחות בישראל היא he.</div>
-                            </div>
-
-                            {renderNumberField(
-                                'Endpointing (ms)',
-                                'כמה ms שקט לפני ש-Deepgram סוגר משפט (speech_final).',
-                                stt.deepgram_endpointing_ms,
-                                (v) => updateSection('stt', { deepgram_endpointing_ms: v }),
-                                { min: 150, max: 2000, step: 50, unit: 'ms' }
-                            )}
-
-                            {renderNumberField(
-                                'Utterance End (ms)',
-                                'זמן המתנה מרבי לזיהוי סוף דיבור מוחלט.',
-                                stt.deepgram_utterance_end_ms,
-                                (v) => updateSection('stt', { deepgram_utterance_end_ms: v }),
-                                { min: 500, max: 3000, step: 100, unit: 'ms' }
-                            )}
-
-                            {renderNumberField(
-                                'הגבר שמע ל-STT (Audio Gain)',
-                                'הגברת עוצמת המיקרופון לפני שליחה ל-Deepgram (1.0 = מקור).',
-                                stt.audio_gain,
-                                (v) => updateSection('stt', { audio_gain: v }),
-                                { min: 0.5, max: 3.0, step: 0.1, unit: 'x' }
-                            )}
-
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                                {renderToggle(stt.deepgram_smart_format, (v) => updateSection('stt', { deepgram_smart_format: v }), 'Smart Format', 'פיסוק ועיצוב מספרים אוטומטי.')}
-                                {renderToggle(stt.deepgram_vad_events, (v) => updateSection('stt', { deepgram_vad_events: v }), 'VAD Events', 'קבלת אירועי התחלת/סיום דיבור מ-Deepgram.')}
-                            </div>
+                    {/* Essential STT fields */}
+                    <div style={el.grid}>
+                        <div style={el.fieldCard(false)}>
+                            <label style={{ fontSize: '0.84rem', fontWeight: 700 }}>מודל תמלול</label>
+                            <select
+                                value={isDeepgram ? stt.deepgram_model : stt.scribe_model_id}
+                                onChange={(e) => updateSection('stt', isDeepgram ? { deepgram_model: e.target.value } : { scribe_model_id: e.target.value })}
+                                style={el.input}
+                            >
+                                {(currentProvSpec?.models || (isDeepgram ? ['nova-3', 'nova-3-general', 'nova-2', 'nova-2-phonecall'] : ['scribe_v3_live', 'scribe_v2_realtime'])).map((m) => (
+                                    <option key={m} value={m}>{m}</option>
+                                ))}
+                            </select>
+                            <span style={{ fontSize: '0.73rem', color: '#71717a' }}>
+                                ברירת מחדל: {isDeepgram ? envDefaults.stt.deepgram_model : envDefaults.stt.scribe_model_id}
+                            </span>
                         </div>
-                    ) : (
-                        <div style={s.fieldGrid}>
-                            <div style={s.fieldBox}>
-                                <label style={s.label}>מודל Scribe</label>
-                                <select
-                                    value={stt.scribe_model_id}
-                                    onChange={(e) => updateSection('stt', { scribe_model_id: e.target.value })}
-                                    style={s.input}
-                                >
-                                    {(currentProvSpec?.models || ['scribe_v3_live', 'scribe_v2_realtime']).map((m) => (
-                                        <option key={m} value={m}>{m}</option>
-                                    ))}
-                                </select>
-                                <div style={s.hint}>scribe_v3_live הוא המודל המהיר והעדכני ביותר של ElevenLabs.</div>
-                            </div>
 
-                            <div style={s.fieldBox}>
-                                <label style={s.label}>שפה ופורמט שמע</label>
-                                <div style={{ display: 'flex', gap: '8px' }}>
-                                    <select
-                                        value={stt.scribe_language}
-                                        onChange={(e) => updateSection('stt', { scribe_language: e.target.value })}
-                                        style={s.input}
-                                    >
-                                        <option value="he">עברית (he)</option>
-                                        <option value="en">אנגלית (en)</option>
-                                        <option value="ru">רוסית (ru)</option>
-                                        <option value="ar">ערבית (ar)</option>
-                                    </select>
-                                    <select
-                                        value={stt.scribe_audio_format}
-                                        onChange={(e) => updateSection('stt', { scribe_audio_format: e.target.value })}
-                                        style={s.input}
-                                    >
-                                        <option value="pcm_8000">pcm_8000 (טלפוניה נקי)</option>
-                                        <option value="pcm_16000">pcm_16000</option>
-                                    </select>
-                                </div>
-                            </div>
-
-                            {renderNumberField(
-                                'VAD Silence Threshold (שניות)',
-                                'משך השקט לפני ש-Scribe מבצע commit למשפט.',
-                                stt.scribe_vad_silence_secs,
-                                (v) => updateSection('stt', { scribe_vad_silence_secs: v }),
-                                { min: 0.2, max: 2.0, step: 0.05, unit: 's' }
-                            )}
-
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                                {renderToggle(stt.scribe_filter_background_audio, (v) => updateSection('stt', { scribe_filter_background_audio: v }), 'סינון רעשי רקע', 'מומלץ לכבות בקווי טלפון רועשים אם מילים שקטות נחתכות.')}
-                                {renderToggle(stt.fallback_to_deepgram, (v) => updateSection('stt', { fallback_to_deepgram: v }), 'Fallback אוטומטי ל-Deepgram', 'אם Scribe מתנתק פעמיים, עוברים אוטומטית ל-Deepgram.')}
-                            </div>
+                        <div style={el.fieldCard(false)}>
+                            <label style={{ fontSize: '0.84rem', fontWeight: 700 }}>שפה</label>
+                            <select
+                                value={isDeepgram ? stt.deepgram_language : stt.scribe_language}
+                                onChange={(e) => updateSection('stt', isDeepgram ? { deepgram_language: e.target.value } : { scribe_language: e.target.value })}
+                                style={el.input}
+                            >
+                                <option value="he">עברית (he)</option>
+                                <option value="en">אנגלית (en)</option>
+                                {isDeepgram && <option value="multi">רב-לשוני (multi)</option>}
+                                <option value="ru">רוסית (ru)</option>
+                                <option value="ar">ערבית (ar)</option>
+                            </select>
+                            <span style={{ fontSize: '0.73rem', color: '#71717a' }}>ברירת מחדל: he</span>
                         </div>
-                    )}
 
-                    {/* Keywords / Keyterms Studio */}
-                    <div style={{ borderTop: '1px solid #e2e8f0', paddingTop: '1rem', display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
+                        {isDeepgram
+                            ? renderNumberControl('stt', 'deepgram_endpointing_ms', 'מהירות סגירת משפט (Endpointing)', '', { min: 150, max: 2000, step: 50, unit: 'ms' })
+                            : renderNumberControl('stt', 'scribe_vad_silence_secs', 'שקט לסגירת משפט (VAD)', '', { min: 0.2, max: 2.0, step: 0.05, unit: 's' })}
+                    </div>
+
+                    {/* Keywords Studio */}
+                    <div style={{ borderTop: '1px solid #e4e4e7', paddingTop: '1rem', display: 'flex', flexDirection: 'column', gap: '0.8rem' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                <Tag size={18} color={stdBanner.color} />
-                                <h4 style={{ margin: 0, fontSize: '1rem', fontWeight: 800, color: '#0f172a' }}>
-                                    ניהול Keywords / Keyterms לפי תקן הספק
-                                </h4>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '7px' }}>
+                                <Tag size={17} color="#18181b" />
+                                <h4 style={{ margin: 0, fontSize: '0.98rem', fontWeight: 800 }}>Keywords / Keyterms (מונחים לחיזוק בתמלול)</h4>
                             </div>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                                <span style={{
-                                    fontSize: '0.8rem',
-                                    fontWeight: 700,
-                                    color: pct >= 90 ? '#dc2626' : '#334155',
-                                    backgroundColor: '#f1f5f9',
-                                    padding: '4px 10px',
-                                    borderRadius: '999px',
-                                }}>
-                                    {keytermsList.length} / {maxKeyterms} מונחים
-                                </span>
-                                <div style={{ width: '90px', height: '8px', backgroundColor: '#e2e8f0', borderRadius: '999px', overflow: 'hidden' }}>
-                                    <div style={{
-                                        width: `${pct}%`,
-                                        height: '100%',
-                                        backgroundColor: pct >= 90 ? '#dc2626' : stdBanner.color,
-                                        transition: 'width 0.2s',
-                                    }} />
-                                </div>
-                            </div>
+                            <span style={{ fontSize: '0.78rem', fontWeight: 700, color: pct >= 90 ? '#dc2626' : '#52525b', backgroundColor: '#f4f4f5', padding: '3px 10px', borderRadius: '999px' }}>
+                                {keytermsList.length} / {maxKeyterms}
+                            </span>
                         </div>
 
-                        {/* Standard Explanation Banner */}
-                        <div style={{
-                            padding: '10px 14px',
-                            borderRadius: '10px',
-                            backgroundColor: stdBanner.bg,
-                            border: `1px solid ${stdBanner.border}`,
-                            color: stdBanner.color,
-                            fontSize: '0.81rem',
-                        }}>
-                            <strong>{stdBanner.title}:</strong> {stdBanner.text}
+                        <div style={{ padding: '9px 13px', borderRadius: '9px', backgroundColor: '#f4f4f5', border: '1px solid #e4e4e7', fontSize: '0.79rem', color: '#3f3f46' }}>
+                            {!isDeepgram
+                                ? 'תקן ElevenLabs Scribe: פרמטר keyterms — עד 50 מונחים נקיים (ללא :boost).'
+                                : isNova3
+                                    ? 'תקן Deepgram Nova-3: פרמטר keyterm — עד 100 ביטויים/שמות נקיים ללא ניקוד או :boost.'
+                                    : 'תקן Deepgram Nova-2: פרמטר keywords — עד 100 מונחים, תומך במשקל חיזוק (למשל בוט טן:2).'}
                         </div>
 
-                        {/* Presets + Bulk Paste */}
-                        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
-                            <span style={{ fontSize: '0.8rem', fontWeight: 700, color: '#475569' }}>סטים מוכנים:</span>
+                        <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', alignItems: 'center' }}>
+                            <span style={{ fontSize: '0.78rem', fontWeight: 600, color: '#71717a' }}>סטים מוכנים:</span>
                             {Object.entries(keywordPresets).map(([key, p]) => (
                                 <button
                                     key={key}
                                     type="button"
-                                    onClick={() => handleApplyKeywordPreset(key)}
-                                    style={{
-                                        padding: '5px 11px',
-                                        borderRadius: '8px',
-                                        border: '1px solid #cbd5e1',
-                                        backgroundColor: '#fff',
-                                        fontSize: '0.78rem',
-                                        fontWeight: 600,
-                                        cursor: 'pointer',
-                                        color: key === 'empty' ? '#dc2626' : '#1e293b',
-                                    }}
+                                    onClick={() => updateSection('stt', { keyterms: [...(p.keyterms || [])].slice(0, maxKeyterms) })}
+                                    style={{ ...el.btnSecondary, padding: '5px 10px', fontSize: '0.76rem', color: key === 'empty' ? '#dc2626' : '#18181b' }}
                                 >
                                     {p.label}
                                 </button>
                             ))}
-                            <button
-                                type="button"
-                                onClick={() => setShowBulkPaste((v) => !v)}
-                                style={{
-                                    padding: '5px 11px',
-                                    borderRadius: '8px',
-                                    border: '1px solid #93c5fd',
-                                    backgroundColor: '#eff6ff',
-                                    color: '#1d4ed8',
-                                    fontSize: '0.78rem',
-                                    fontWeight: 700,
-                                    cursor: 'pointer',
-                                    marginRight: 'auto',
-                                }}
-                            >
-                                + הדבקה מרוכזת (Bulk)
+                            <button type="button" onClick={() => setShowBulkPaste((v) => !v)} style={{ ...el.btnSecondary, padding: '5px 10px', fontSize: '0.76rem', marginRight: 'auto' }}>
+                                + הדבקה מרוכזת
                             </button>
                         </div>
 
                         {showBulkPaste && (
-                            <div style={{ padding: '12px', borderRadius: '10px', backgroundColor: '#f8fafc', border: '1px solid #cbd5e1', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                                <div style={s.hint}>הדבק מילים או ביטויים מופרדים בפסיקים או בשורות חדשות:</div>
-                                <textarea
-                                    rows={3}
-                                    value={bulkText}
-                                    onChange={(e) => setBulkText(e.target.value)}
-                                    placeholder="למשל: בוט טן, עומר, סוכן קולי, CRM"
-                                    style={{ ...s.input, fontFamily: 'inherit' }}
-                                />
+                            <div style={{ padding: '10px', borderRadius: '9px', backgroundColor: '#fafafa', border: '1px solid #e4e4e7', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                <textarea rows={3} value={bulkText} onChange={(e) => setBulkText(e.target.value)} placeholder="הדבק מילים מופרדות בפסיק או שורה חדשה..." style={el.input} />
                                 <div style={{ display: 'flex', gap: '8px' }}>
-                                    <button type="button" onClick={handleApplyBulkPaste} style={{ ...s.btnPrimary, padding: '6px 14px', fontSize: '0.8rem' }}>
-                                        הוסף לרשימה
-                                    </button>
-                                    <button type="button" onClick={() => setShowBulkPaste(false)} style={{ padding: '6px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', backgroundColor: '#fff', cursor: 'pointer', fontSize: '0.8rem' }}>
-                                        סגור
-                                    </button>
+                                    <button type="button" onClick={handleApplyBulkPaste} style={{ ...el.btnPrimary, padding: '6px 12px', fontSize: '0.78rem' }}>הוסף</button>
+                                    <button type="button" onClick={() => setShowBulkPaste(false)} style={{ ...el.btnSecondary, padding: '6px 12px', fontSize: '0.78rem' }}>סגור</button>
                                 </div>
                             </div>
                         )}
 
-                        {/* Add Single Keyword */}
                         <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
                             <input
                                 type="text"
                                 value={newKeyword}
                                 onChange={(e) => setNewKeyword(e.target.value)}
                                 onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), handleAddKeyword())}
-                                placeholder="הקלד מילת מפתח או שם (למשל: בשביל הזהב) ולחץ Enter..."
-                                style={{ ...s.input, flex: 1, minWidth: '220px' }}
+                                placeholder="הקלד מילה או ביטוי ולחץ Enter..."
+                                style={{ ...el.input, flex: 1, minWidth: '210px' }}
                             />
                             {supportsBoost && (
-                                <input
-                                    type="number"
-                                    step="0.5"
-                                    min="1"
-                                    max="10"
-                                    value={newBoost}
-                                    onChange={(e) => setNewBoost(e.target.value)}
-                                    placeholder="Boost (למשל 2)"
-                                    style={{ ...s.input, width: '130px', direction: 'ltr' }}
-                                />
+                                <input type="number" step="0.5" min="1" max="10" value={newBoost} onChange={(e) => setNewBoost(e.target.value)} placeholder="Boost" style={{ ...el.input, width: '90px', direction: 'ltr' }} />
                             )}
-                            <button
-                                type="button"
-                                onClick={handleAddKeyword}
-                                style={{ ...s.btnPrimary, padding: '8px 16px' }}
-                            >
-                                <Plus size={16} />
-                                הוסף
+                            <button type="button" onClick={handleAddKeyword} style={el.btnPrimary}>
+                                <Plus size={15} /> הוסף
                             </button>
                         </div>
 
-                        {/* Chips */}
-                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '7px', padding: '10px', borderRadius: '10px', backgroundColor: '#f8fafc', border: '1px solid #e2e8f0', minHeight: '52px' }}>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', padding: '10px', borderRadius: '10px', backgroundColor: '#fafafa', border: '1px solid #e4e4e7', minHeight: '46px' }}>
                             {keytermsList.length === 0 ? (
-                                <span style={{ color: '#94a3b8', fontSize: '0.82rem' }}>
-                                    אין מילות מפתח מוגדרות (מצב תמלול טבעי נקי).
+                                <span style={{ color: '#a1a1aa', fontSize: '0.8rem' }}>אין מילות מפתח (מצב תמלול נקי).</span>
+                            ) : keytermsList.map((term) => (
+                                <span key={term} style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '4px 10px', borderRadius: '999px', backgroundColor: '#fff', border: '1px solid #d4d4d8', fontSize: '0.8rem', fontWeight: 600 }}>
+                                    {term}
+                                    <button type="button" onClick={() => updateSection('stt', { keyterms: keytermsList.filter((t) => t !== term) })} style={{ border: 'none', background: 'none', color: '#ef4444', cursor: 'pointer', padding: 0, fontWeight: 700 }}>×</button>
                                 </span>
-                            ) : (
-                                keytermsList.map((term) => (
-                                    <span
-                                        key={term}
-                                        style={{
-                                            display: 'inline-flex',
-                                            alignItems: 'center',
-                                            gap: '6px',
-                                            padding: '4px 10px',
-                                            borderRadius: '999px',
-                                            backgroundColor: '#fff',
-                                            border: '1px solid #cbd5e1',
-                                            fontSize: '0.81rem',
-                                            fontWeight: 600,
-                                            color: '#0f172a',
-                                        }}
-                                    >
-                                        <span>{term}</span>
-                                        <button
-                                            type="button"
-                                            onClick={() => handleRemoveKeyword(term)}
-                                            style={{ border: 'none', background: 'none', color: '#ef4444', cursor: 'pointer', padding: 0, fontWeight: 700, lineHeight: 1 }}
-                                            title="הסר"
-                                        >
-                                            ×
-                                        </button>
-                                    </span>
-                                ))
-                            )}
+                            ))}
                         </div>
-
-                        {/* Deepgram Replace Rules */}
-                        {isDeepgram && (
-                            <div style={{ marginTop: '6px', padding: '12px', borderRadius: '10px', backgroundColor: '#f8fafc', border: '1px solid #e2e8f0' }}>
-                                <div style={{ ...s.label, marginBottom: '6px' }}>חוקי החלפה אוטומטית ב-Deepgram (Replace: שגוי ➔ תקין)</div>
-                                <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '8px' }}>
-                                    <input
-                                        type="text"
-                                        value={replaceFrom}
-                                        onChange={(e) => setReplaceFrom(e.target.value)}
-                                        placeholder="מילה שגויה בתמלול"
-                                        style={{ ...s.input, flex: 1, minWidth: '150px' }}
-                                    />
-                                    <ArrowLeft size={18} style={{ alignSelf: 'center', color: '#64748b' }} />
-                                    <input
-                                        type="text"
-                                        value={replaceTo}
-                                        onChange={(e) => setReplaceTo(e.target.value)}
-                                        placeholder="תיקון רצוי"
-                                        style={{ ...s.input, flex: 1, minWidth: '150px' }}
-                                    />
-                                    <button type="button" onClick={handleAddReplaceRule} style={{ padding: '7px 14px', borderRadius: '8px', border: '1px solid #cbd5e1', backgroundColor: '#fff', fontWeight: 700, cursor: 'pointer' }}>
-                                        הוסף חוק
-                                    </button>
-                                </div>
-                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
-                                    {(stt.replace_rules || []).map((r) => (
-                                        <span key={r} style={{ padding: '3px 9px', borderRadius: '6px', backgroundColor: '#fff', border: '1px solid #cbd5e1', fontSize: '0.78rem', display: 'inline-flex', gap: '6px', alignItems: 'center' }}>
-                                            <code>{r}</code>
-                                            <button type="button" onClick={() => updateSection('stt', { replace_rules: stt.replace_rules.filter((x) => x !== r) })} style={{ border: 'none', background: 'none', color: '#ef4444', cursor: 'pointer', fontWeight: 700 }}>×</button>
-                                        </span>
-                                    ))}
-                                </div>
-                            </div>
-                        )}
                     </div>
+
+                    {renderAdvancedAccordion(
+                        <>
+                            <div style={el.grid}>
+                                {renderNumberControl('stt', 'audio_gain', 'הגבר שמע ל-STT (Audio Gain)', '', { min: 0.5, max: 3.0, step: 0.05, unit: 'x' })}
+                                {isDeepgram && renderNumberControl('stt', 'deepgram_utterance_end_ms', 'Utterance End (ms)', '', { min: 500, max: 3000, step: 100, unit: 'ms' })}
+                                {isDeepgram ? (
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                        {renderToggleControl('stt', 'deepgram_smart_format', 'Smart Format', 'פיסוק ועיצוב מספרים אוטומטי.')}
+                                        {renderToggleControl('stt', 'deepgram_vad_events', 'VAD Events', 'אירועי זיהוי דיבור מ-Deepgram.')}
+                                    </div>
+                                ) : (
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                        {renderToggleControl('stt', 'scribe_filter_background_audio', 'סינון רעשי רקע (Scribe)', 'כבוי מומלץ לקווי טלפון.')}
+                                        {renderToggleControl('stt', 'fallback_to_deepgram', 'Fallback ל-Deepgram', 'מעבר אוטומטי במקרה של ניתוק.')}
+                                    </div>
+                                )}
+                            </div>
+                            {isDeepgram && (
+                                <div style={{ padding: '10px', borderRadius: '9px', backgroundColor: '#fafafa', border: '1px solid #e4e4e7' }}>
+                                    <div style={{ fontSize: '0.82rem', fontWeight: 700, marginBottom: '6px' }}>חוקי החלפה ב-Deepgram (Replace: שגוי ➔ תקין)</div>
+                                    <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '8px' }}>
+                                        <input type="text" value={replaceFrom} onChange={(e) => setReplaceFrom(e.target.value)} placeholder="מילה שגויה" style={{ ...el.input, flex: 1, minWidth: '140px' }} />
+                                        <ArrowLeft size={16} style={{ alignSelf: 'center', color: '#71717a' }} />
+                                        <input type="text" value={replaceTo} onChange={(e) => setReplaceTo(e.target.value)} placeholder="תיקון" style={{ ...el.input, flex: 1, minWidth: '140px' }} />
+                                        <button type="button" onClick={handleAddReplaceRule} style={el.btnSecondary}>הוסף</button>
+                                    </div>
+                                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                                        {(stt.replace_rules || []).map((r) => (
+                                            <span key={r} style={{ padding: '3px 9px', borderRadius: '6px', backgroundColor: '#fff', border: '1px solid #d4d4d8', fontSize: '0.78rem', display: 'inline-flex', gap: '6px' }}>
+                                                <code>{r}</code>
+                                                <button type="button" onClick={() => updateSection('stt', { replace_rules: stt.replace_rules.filter((x) => x !== r) })} style={{ border: 'none', background: 'none', color: '#ef4444', cursor: 'pointer' }}>×</button>
+                                            </span>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+                        </>
+                    )}
                 </div>
             )}
 
-            {/* STAGE 2: TURN TAKING & SPECULATION */}
-            {activeStage === 'turn_taking' && (
-                <div style={s.panel}>
+            {/* TAB 2: BARGE-IN & INTERRUPTION IGNORE PHRASES */}
+            {activeStage === 'barge_in' && (
+                <div style={el.card}>
                     <div>
-                        <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 800, color: '#0f172a' }}>
-                            תזמון שיחה, השהיות וספקולציה (Turn-Taking)
-                        </h3>
-                        <div style={s.hint}>קובע כמה מהר הבוט מתחיל לחשוב ומתי הוא משחרר את התשובה ללקוח.</div>
+                        <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 800 }}>קטיעה ומילים להתעלמות בזמן שהבוט מדבר</h3>
+                        <div style={{ fontSize: '0.8rem', color: '#71717a' }}>כוונון מתי הלקוח יכול לעצור את הבוט, ואילו מילות הקשבה ("אה כן", "אוקיי") לא יקטעו אותו.</div>
                     </div>
 
-                    {/* Speed Presets */}
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '0.85rem' }}>
+                    {/* Essential Barge-in Controls */}
+                    <div style={el.grid}>
+                        {renderToggleControl('barge_in', 'enabled', 'אפשר קטיעה (Barge-In)', 'האם הלקוח יכול לעצור את הבוט באמצע משפט.')}
+                        {renderToggleControl('barge_in', 'disable_first_message_interruptions', 'נעל קטיעה במשפט פתיחה', 'מונע מרעש קו ראשוני לעצור את הברכה.')}
+                        {renderNumberControl('barge_in', 'greeting_delay_sec', 'דיליי לפני משפט פתיחה', 'השהייה בשניות לפני ה-"היי" בתחילת שיחה.', { min: 0, max: 5, step: 0.1, unit: 's' })}
+                        {renderNumberControl('barge_in', 'protect_sec', 'חסימת קטיעה בתחילת כל משפט', 'כמה שניות מתחילת משפט של הבוט אסור לקטוע אותו.', { min: 0, max: 10, step: 0.1, unit: 's' })}
+                        {renderNumberControl('barge_in', 'min_words', 'מינימום מילים לקטיעה', 'כמה מילים משמעותיות נדרשות כדי לעצור את הבוט.', { min: 1, max: 8, step: 1 })}
+                    </div>
+
+                    {/* Interruption Ignore Phrases */}
+                    <div style={{ borderTop: '1px solid #e4e4e7', paddingTop: '1rem', display: 'flex', flexDirection: 'column', gap: '0.8rem' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
+                            <div>
+                                <h4 style={{ margin: 0, fontSize: '0.98rem', fontWeight: 800 }}>
+                                    מילים וביטויים שהבוט מתעלם מהם בזמן שהוא מדבר (Interruption Ignore Terms)
+                                </h4>
+                                <div style={{ fontSize: '0.78rem', color: '#71717a', marginTop: '2px' }}>
+                                    אם הלקוח אומר ביטויים כאלה (למשל <strong>"אה כן"</strong>, <strong>"אוקיי"</strong>, <strong>"בסדר"</strong>) תוך כדי שהבוט מדבר — הבוט ממשיך לדבר כרגיל ולא נקטע.
+                                </div>
+                            </div>
+                            <span style={{ fontSize: '0.78rem', fontWeight: 700, color: '#52525b', backgroundColor: '#f4f4f5', padding: '3px 10px', borderRadius: '999px' }}>
+                                {ignoreList.length} ביטויים
+                            </span>
+                        </div>
+
+                        <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', alignItems: 'center' }}>
+                            <span style={{ fontSize: '0.78rem', fontWeight: 600, color: '#71717a' }}>תבניות מוכנות:</span>
+                            {Object.entries(ignorePresets).map(([key, p]) => (
+                                <button
+                                    key={key}
+                                    type="button"
+                                    onClick={() => updateSection('barge_in', { ignore_phrases: [...(p.phrases || [])] })}
+                                    style={{ ...el.btnSecondary, padding: '5px 10px', fontSize: '0.76rem', color: key === 'empty' ? '#dc2626' : '#18181b' }}
+                                >
+                                    {p.label}
+                                </button>
+                            ))}
+                            <button type="button" onClick={() => setShowIgnoreBulk((v) => !v)} style={{ ...el.btnSecondary, padding: '5px 10px', fontSize: '0.76rem', marginRight: 'auto' }}>
+                                + הדבקה מרוכזת
+                            </button>
+                        </div>
+
+                        {showIgnoreBulk && (
+                            <div style={{ padding: '10px', borderRadius: '9px', backgroundColor: '#fafafa', border: '1px solid #e4e4e7', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                <textarea rows={2} value={ignoreBulkText} onChange={(e) => setIgnoreBulkText(e.target.value)} placeholder="למשל: אה כן, אוקיי, בסדר גמור, כן כן" style={el.input} />
+                                <div style={{ display: 'flex', gap: '8px' }}>
+                                    <button type="button" onClick={handleApplyIgnoreBulk} style={{ ...el.btnPrimary, padding: '6px 12px', fontSize: '0.78rem' }}>הוסף</button>
+                                    <button type="button" onClick={() => setShowIgnoreBulk(false)} style={{ ...el.btnSecondary, padding: '6px 12px', fontSize: '0.78rem' }}>סגור</button>
+                                </div>
+                            </div>
+                        )}
+
+                        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                            <input
+                                type="text"
+                                value={newIgnorePhrase}
+                                onChange={(e) => setNewIgnorePhrase(e.target.value)}
+                                onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), handleAddIgnorePhrase())}
+                                placeholder='הוסף מילה או ביטוי להתעלמות (למשל: "אה כן", "סבבה", "הבנתי")...'
+                                style={{ ...el.input, flex: 1, minWidth: '220px' }}
+                            />
+                            <button type="button" onClick={handleAddIgnorePhrase} style={el.btnPrimary}>
+                                <Plus size={15} /> הוסף
+                            </button>
+                        </div>
+
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', padding: '10px', borderRadius: '10px', backgroundColor: '#fafafa', border: '1px solid #e4e4e7', minHeight: '46px' }}>
+                            {ignoreList.length === 0 ? (
+                                <span style={{ color: '#a1a1aa', fontSize: '0.8rem' }}>אין מילים להתעלמות — כל דיבור מעל מינימום המילים יקטע את הבוט.</span>
+                            ) : ignoreList.map((ph) => (
+                                <span key={ph} style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '4px 10px', borderRadius: '999px', backgroundColor: '#fff', border: '1px solid #d4d4d8', fontSize: '0.8rem', fontWeight: 600 }}>
+                                    {ph}
+                                    <button type="button" onClick={() => updateSection('barge_in', { ignore_phrases: ignoreList.filter((x) => x !== ph) })} style={{ border: 'none', background: 'none', color: '#ef4444', cursor: 'pointer', padding: 0, fontWeight: 700 }}>×</button>
+                                </span>
+                            ))}
+                        </div>
+                    </div>
+
+                    {renderAdvancedAccordion(
+                        <div style={el.grid}>
+                            {renderNumberControl('barge_in', 'voice_rms', 'סף עוצמת קול (VOICE_RMS)', 'רגישות מיקרופון בזמן האזנה.', { min: 80, max: 1000, step: 15 })}
+                            {renderNumberControl('barge_in', 'run_rms', 'סף רצף דיבור (RUN_RMS)', 'סף עוצמה לקטיעה בזמן שהבוט מדבר.', { min: 100, max: 1200, step: 15 })}
+                            {renderNumberControl('barge_in', 'vad_frames', 'VAD Frames לקטיעה', 'פריימים רצופים של קול (20ms כ״א).', { min: 5, max: 60, step: 1 })}
+                            {renderNumberControl('barge_in', 'echo_shield_sec', 'מגן הד (Echo Shield)', 'חסימת הד בתחילת השמעה.', { min: 0.0, max: 2.5, step: 0.1, unit: 's' })}
+                            {renderNumberControl('barge_in', 'protect_words', 'מילים מוגנות (גיבוי)', 'גיבוי אם אין חסימת שניות מוגדרת.', { min: -1, max: 20, step: 1 })}
+                        </div>
+                    )}
+                </div>
+            )}
+
+            {/* TAB 3: TURN TAKING */}
+            {activeStage === 'turn_taking' && (
+                <div style={el.card}>
+                    <div>
+                        <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 800 }}>קצב שיחה והשהיות (Turn-Taking)</h3>
+                        <div style={{ fontSize: '0.8rem', color: '#71717a' }}>בחר פרופיל מוכן או התאם כמה זמן הבוט מחכה לפני שהוא משחרר תשובה.</div>
+                    </div>
+
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '0.8rem' }}>
                         {speedPresets.map((preset) => (
                             <button
                                 key={preset.id}
                                 type="button"
                                 onClick={() => handleApplySpeedPreset(preset)}
-                                style={{
-                                    padding: '12px 14px',
-                                    borderRadius: '12px',
-                                    border: '1px solid #ddd6fe',
-                                    backgroundColor: '#faf5ff',
-                                    textAlign: 'right',
-                                    cursor: 'pointer',
-                                }}
+                                style={{ padding: '11px 13px', borderRadius: '11px', border: '1px solid #e4e4e7', backgroundColor: '#fafafa', textAlign: 'right', cursor: 'pointer' }}
                             >
-                                <div style={{ fontWeight: 800, color: '#6d28d9', fontSize: '0.92rem', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                    <Zap size={15} />
-                                    {preset.label}
+                                <div style={{ fontWeight: 700, fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: '6px', color: '#18181b' }}>
+                                    <Zap size={14} /> {preset.label}
                                 </div>
-                                <div style={{ fontSize: '0.76rem', color: '#475569', marginTop: '4px' }}>{preset.description}</div>
+                                <div style={{ fontSize: '0.75rem', color: '#71717a', marginTop: '3px' }}>{preset.description}</div>
                             </button>
                         ))}
                     </div>
 
-                    <div style={s.fieldGrid}>
-                        {renderToggle(config.turn_taking.speculative_turn, (v) => updateSection('turn_taking', { speculative_turn: v }), 'ספקולציית LLM (Speculative Turn)', 'מכין טיוטת תשובה ב-RAM כבר בהפסקה קצרה של הלקוח.')}
-                        {renderToggle(config.turn_taking.speculative_tts, (v) => updateSection('turn_taking', { speculative_tts: v }), 'ספקולציית TTS מלאה', 'מכין גם אודיו מראש (מקצר שיהוי, עשוי לצרוך תווים אם הלקוח ממשיך).')}
-                        {renderNumberField('שקט להתחלת ספקולציה', 'שניות שקט מה-partial האחרון לפני הכנת טיוטה.', config.turn_taking.speculative_silence_sec, (v) => updateSection('turn_taking', { speculative_silence_sec: v }), { min: 0.05, max: 1.5, step: 0.05, unit: 's' })}
-                        {renderNumberField('שחרור מוקדם (משפט רגיל)', 'שניות שקט לשחרור תשובה מוכנה בלי לחכות ל-final.', config.turn_taking.early_release_silence_sec, (v) => updateSection('turn_taking', { early_release_silence_sec: v }), { min: 0.3, max: 2.5, step: 0.05, unit: 's' })}
-                        {renderNumberField('שחרור מוקדם (שאלה)', 'כאשר הלקוח שאל שאלה של 3+ מילים.', config.turn_taking.early_release_question_sec, (v) => updateSection('turn_taking', { early_release_question_sec: v }), { min: 0.3, max: 2.0, step: 0.05, unit: 's' })}
-                        {renderNumberField('שחרור מוקדם (תשובה קצרה)', 'משפט קצר ומלא (כן, מעולה, תודה).', config.turn_taking.early_release_short_sec, (v) => updateSection('turn_taking', { early_release_short_sec: v }), { min: 0.3, max: 2.0, step: 0.05, unit: 's' })}
-                        {renderNumberField('Endpoint Fallback Silence', 'גיבוי אם ה-STT לא שלח commit בזמן.', config.turn_taking.endpoint_fallback_silence_sec, (v) => updateSection('turn_taking', { endpoint_fallback_silence_sec: v }), { min: 0.4, max: 3.0, step: 0.05, unit: 's' })}
-                        {renderNumberField('תוספת המתנה למשפט לא גמור', 'כשמשפט מסתיים ב-"כי", "אבל", פסיק וכד׳.', config.turn_taking.incomplete_extra_wait_sec, (v) => updateSection('turn_taking', { incomplete_extra_wait_sec: v }), { min: 0.2, max: 3.0, step: 0.1, unit: 's' })}
-                        {renderNumberField('תוספת המתנה להכתבת מספר', 'מחכה בין קבוצות ספרות של מספר טלפון.', config.turn_taking.number_extra_wait_sec, (v) => updateSection('turn_taking', { number_extra_wait_sec: v }), { min: 0.5, max: 4.0, step: 0.1, unit: 's' })}
-                        {renderNumberField('Soft Commit Wait', 'המתנה לאחר is_final ללא speech_final.', config.turn_taking.soft_commit_wait_sec, (v) => updateSection('turn_taking', { soft_commit_wait_sec: v }), { min: 0.1, max: 2.0, step: 0.05, unit: 's' })}
+                    <div style={el.grid}>
+                        {renderToggleControl('turn_taking', 'speculative_turn', 'חשיבה מקדימה (Speculative Turn)', 'מכין טיוטת תשובה ב-RAM בזמן הפסקה קצרה.')}
+                        {renderNumberControl('turn_taking', 'early_release_silence_sec', 'המתנה לשחרור תשובה (משפט רגיל)', '', { min: 0.3, max: 2.5, step: 0.05, unit: 's' })}
+                        {renderNumberControl('turn_taking', 'early_release_question_sec', 'המתנה לאחר שאלה', '', { min: 0.3, max: 2.0, step: 0.05, unit: 's' })}
+                        {renderNumberControl('turn_taking', 'number_extra_wait_sec', 'המתנה נוספת להכתבת מספר טלפון', '', { min: 0.5, max: 5.0, step: 0.1, unit: 's' })}
                     </div>
+
+                    {renderAdvancedAccordion(
+                        <div style={el.grid}>
+                            {renderToggleControl('turn_taking', 'speculative_tts', 'Speculative TTS', 'מייצר גם אודיו מראש (עשוי לבזבז תווים אם הלקוח ממשיך).')}
+                            {renderNumberControl('turn_taking', 'speculative_silence_sec', 'שקט להתחלת ספקולציה', '', { min: 0.05, max: 1.5, step: 0.05, unit: 's' })}
+                            {renderNumberControl('turn_taking', 'early_release_short_sec', 'שחרור תשובה קצרה', '', { min: 0.3, max: 2.0, step: 0.05, unit: 's' })}
+                            {renderNumberControl('turn_taking', 'endpoint_fallback_silence_sec', 'Endpoint Fallback', '', { min: 0.4, max: 3.0, step: 0.05, unit: 's' })}
+                            {renderNumberControl('turn_taking', 'incomplete_extra_wait_sec', 'תוספת למשפט לא גמור', '', { min: 0.2, max: 3.0, step: 0.1, unit: 's' })}
+                            {renderNumberControl('turn_taking', 'soft_commit_wait_sec', 'Soft Commit Wait', '', { min: 0.1, max: 2.0, step: 0.05, unit: 's' })}
+                        </div>
+                    )}
                 </div>
             )}
 
-            {/* STAGE 3: BARGE-IN & VAD */}
-            {activeStage === 'barge_in' && (
-                <div style={s.panel}>
-                    <div>
-                        <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 800, color: '#0f172a' }}>
-                            שליטה בקטיעה (Barge-In) ורגישות שמע (VAD)
-                        </h3>
-                        <div style={s.hint}>כוונון עדין מתי הלקוח יכול לקטוע את הבוט ומה סף עוצמת הקול לזיהוי דיבור.</div>
-                    </div>
-
-                    <div style={s.fieldGrid}>
-                        {renderToggle(config.barge_in.enabled, (v) => updateSection('barge_in', { enabled: v }), 'אפשר קטיעה (Barge-In)', 'האם הלקוח יכול לעצור את הבוט באמצע משפט.')}
-                        {renderToggle(config.barge_in.disable_first_message_interruptions, (v) => updateSection('barge_in', { disable_first_message_interruptions: v }), 'נעל קטיעה במשפט פתיחה', 'מונע קטיעה של ברכת הפתיחה בגלל רעש קו ראשוני.')}
-                        {renderNumberField('הגנת מילים ראשונות (Protect Words)', 'מספר מילים מוגנות בתחילת משפט (-1 = חסום כל התשובה).', config.barge_in.protect_words, (v) => updateSection('barge_in', { protect_words: v }), { min: -1, max: 20, step: 1 })}
-                        {renderNumberField('מינימום מילים לקטיעה', 'כמה מילים הלקוח צריך לומר כדי לקטוע את הבוט.', config.barge_in.min_words, (v) => updateSection('barge_in', { min_words: v }), { min: 1, max: 6, step: 1 })}
-                        {renderNumberField('מגן הד (Echo Shield)', 'זמן חסימה בתחילת דיבור למניעת קטיעה מהד של הבוט.', config.barge_in.echo_shield_sec, (v) => updateSection('barge_in', { echo_shield_sec: v }), { min: 0.0, max: 2.5, step: 0.1, unit: 's' })}
-                        {renderNumberField('VAD Frames לקטיעה', 'מספר פריימים רצופים של קול (20ms כל אחד) לקטיעה.', config.barge_in.vad_frames, (v) => updateSection('barge_in', { vad_frames: v }), { min: 5, max: 60, step: 1 })}
-                        {renderNumberField('סף עוצמת קול (VOICE_RMS)', 'רגישות מיקרופון לזיהוי דיבור (נמוך = רגיש יותר).', config.barge_in.voice_rms, (v) => updateSection('barge_in', { voice_rms: v }), { min: 80, max: 1000, step: 15 })}
-                        {renderNumberField('סף רצף דיבור (RUN_RMS)', 'עוצמת שמע לזיהוי דיבור רציף בזמן השמעת בוט.', config.barge_in.run_rms, (v) => updateSection('barge_in', { run_rms: v }), { min: 100, max: 1200, step: 15 })}
-                        {renderNumberField('דיליי למשפט פתיחה', 'השהייה בשניות לפני שהבוט אומר הלו בתחילת שיחה.', config.barge_in.greeting_delay_sec, (v) => updateSection('barge_in', { greeting_delay_sec: v }), { min: 0, max: 5, step: 0.1, unit: 's' })}
-                    </div>
-                </div>
-            )}
-
-            {/* STAGE 4: LLM / TTS PIPELINE & LIMITS */}
+            {/* TAB 4: LLM / TTS & LIMITS */}
             {activeStage === 'llm_tts' && (
-                <div style={s.panel}>
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '1rem' }}>
-                        <div style={{ padding: '1rem', borderRadius: '12px', border: '1px solid #cbd5e1', backgroundColor: '#f8fafc', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div style={el.card}>
+                    <div style={el.grid}>
+                        <div style={{ ...el.fieldCard(false), flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
                             <div>
-                                <div style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 700 }}>מנוע LLM פעיל כעת</div>
-                                <div style={{ fontSize: '0.98rem', fontWeight: 800, color: '#0f172a', marginTop: '2px' }}>
-                                    {activeLlm ? `${activeLlm.provider} / ${activeLlm.model}` : 'ברירת מחדל'}
-                                </div>
+                                <div style={{ fontSize: '0.74rem', color: '#71717a', fontWeight: 600 }}>מודל LLM פעיל</div>
+                                <div style={{ fontSize: '0.94rem', fontWeight: 700, marginTop: '2px' }}>{activeLlm ? `${activeLlm.provider} / ${activeLlm.model}` : 'ברירת מחדל'}</div>
                             </div>
-                            {onNavigateTab && (
-                                <button type="button" onClick={() => onNavigateTab('llm')} style={{ padding: '6px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', backgroundColor: '#fff', fontWeight: 700, fontSize: '0.78rem', cursor: 'pointer' }}>
-                                    החלף מודל LLM
-                                </button>
-                            )}
+                            {onNavigateTab && <button type="button" onClick={() => onNavigateTab('llm')} style={el.btnSecondary}>החלף LLM</button>}
                         </div>
-                        <div style={{ padding: '1rem', borderRadius: '12px', border: '1px solid #cbd5e1', backgroundColor: '#f8fafc', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <div style={{ ...el.fieldCard(false), flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
                             <div>
-                                <div style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 700 }}>מנוע TTS פעיל כעת</div>
-                                <div style={{ fontSize: '0.98rem', fontWeight: 800, color: '#0f172a', marginTop: '2px' }}>
-                                    {activeTts ? `${activeTts.provider} / ${activeTts.model}` : 'ברירת מחדל'}
-                                </div>
+                                <div style={{ fontSize: '0.74rem', color: '#71717a', fontWeight: 600 }}>מנוע TTS פעיל</div>
+                                <div style={{ fontSize: '0.94rem', fontWeight: 700, marginTop: '2px' }}>{activeTts ? `${activeTts.provider} / ${activeTts.model}` : 'ברירת מחדל'}</div>
                             </div>
-                            {onNavigateTab && (
-                                <button type="button" onClick={() => onNavigateTab('tts')} style={{ padding: '6px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', backgroundColor: '#fff', fontWeight: 700, fontSize: '0.78rem', cursor: 'pointer' }}>
-                                    החלף מנוע קול
-                                </button>
-                            )}
+                            {onNavigateTab && <button type="button" onClick={() => onNavigateTab('tts')} style={el.btnSecondary}>החלף TTS</button>}
                         </div>
                     </div>
 
-                    <h4 style={{ margin: '0.25rem 0 0', fontSize: '0.98rem', fontWeight: 800, color: '#0f172a', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                        <Sparkles size={16} color="#4f46e5" /> פרמטרי זרימת LLM
-                    </h4>
-                    <div style={s.fieldGrid}>
-                        {renderNumberField('Temperature', 'יצירתיות המודל (0.0 = מדויק ועקבי).', config.llm_pipeline.temperature, (v) => updateSection('llm_pipeline', { temperature: v }), { min: 0, max: 1.5, step: 0.05 })}
-                        {renderNumberField('Max Tokens לתשובה', 'מגבלת אורך תגובה בודדת.', config.llm_pipeline.max_tokens, (v) => updateSection('llm_pipeline', { max_tokens: v }), { min: 50, max: 1000, step: 10 })}
-                        {renderNumberField('היסטוריית שיחה (Turns)', 'כמה הודעות אחרונות נשלחות ל-LLM.', config.llm_pipeline.history_items, (v) => updateSection('llm_pipeline', { history_items: v }), { min: 6, max: 150, step: 2 })}
-                        {renderNumberField('Hedge Timeout (שניות)', 'מתי לפתוח בקשת גיבוי מקבילה אם ה-LLM איטי.', config.llm_pipeline.hedge_after, (v) => updateSection('llm_pipeline', { hedge_after: v }), { min: 0, max: 6, step: 0.2, unit: 's' })}
-                        {renderNumberField('First Token Timeout', 'זמן מרבי לטוקן ראשון לפני מעבר ל-fallback.', config.llm_pipeline.first_token_timeout, (v) => updateSection('llm_pipeline', { first_token_timeout: v }), { min: 1.5, max: 12, step: 0.5, unit: 's' })}
-                        {renderToggle(config.llm_pipeline.race, (v) => updateSection('llm_pipeline', { race: v }), 'מצב Race (ראשי מול גיבוי)', 'מריץ את המודל הראשי והגיבוי יחד ולוקח את המהיר מביניהם.')}
+                    <div style={el.grid}>
+                        {renderNumberControl('llm_pipeline', 'temperature', 'יצירתיות המודל (Temperature)', '', { min: 0, max: 1.5, step: 0.05 })}
+                        {renderNumberControl('llm_pipeline', 'max_tokens', 'אורך תשובה מרבי (Tokens)', '', { min: 50, max: 1000, step: 10 })}
+                        {renderNumberControl('limits', 'silence_end_call_timeout_sec', 'ניתוק אוטומטי בשתיקה', '', { min: 8, max: 60, step: 1, unit: 's' })}
+                        {renderNumberControl('limits', 'max_call_sec', 'אורך שיחה מקסימלי', '', { min: 60, max: 1800, step: 30, unit: 's' })}
                     </div>
 
-                    <h4 style={{ margin: '0.25rem 0 0', fontSize: '0.98rem', fontWeight: 800, color: '#0f172a', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                        <Volume2 size={16} color="#059669" /> הזרמת TTS וגבולות שיחה
-                    </h4>
-                    <div style={s.fieldGrid}>
-                        {renderNumberField('TTS Prebuffer (ms)', 'חציצה ראשונית לפני התחלת ניגון.', config.tts_pipeline.prebuffer_ms, (v) => updateSection('tts_pipeline', { prebuffer_ms: v }), { min: 0, max: 250, step: 10, unit: 'ms' })}
-                        {renderNumberField('Playout Lead (שניות)', 'כמה שניות קדימה מזרימים ל-Telnyx נגד jitter.', config.tts_pipeline.playout_lead_sec, (v) => updateSection('tts_pipeline', { playout_lead_sec: v }), { min: 0.2, max: 1.5, step: 0.05, unit: 's' })}
-                        {renderNumberField('מיזוג משפטים (Merge Rest)', 'איחוד המשך המשפט לבקשת TTS אחת לאינטונציה טבעית.', config.tts_pipeline.merge_rest_sec, (v) => updateSection('tts_pipeline', { merge_rest_sec: v }), { min: 0, max: 1.5, step: 0.05, unit: 's' })}
-                        {renderToggle(config.tts_pipeline.elevenlabs_previous_text, (v) => updateSection('tts_pipeline', { elevenlabs_previous_text: v }), 'ElevenLabs Previous Text', 'שולח את הטקסט הקודם לשמירת רצף אינטונציה.')}
-                        {renderNumberField('ניתוק בשתיקה (שניות)', 'כמה שניות של דממה מוחלטת לפני שהבוט מנתק.', config.limits.silence_end_call_timeout_sec, (v) => updateSection('limits', { silence_end_call_timeout_sec: v }), { min: 8, max: 60, step: 1, unit: 's' })}
-                        {renderNumberField('אורך שיחה מקסימלי (שניות)', 'תקרת זמן לשיחה בודדת.', config.limits.max_call_sec, (v) => updateSection('limits', { max_call_sec: v }), { min: 60, max: 1800, step: 30, unit: 's' })}
-                    </div>
+                    {renderAdvancedAccordion(
+                        <div style={el.grid}>
+                            {renderNumberControl('llm_pipeline', 'history_items', 'היסטוריית שיחה (Turns)', '', { min: 6, max: 150, step: 2 })}
+                            {renderNumberControl('llm_pipeline', 'hedge_after', 'Hedge Timeout', '', { min: 0, max: 6, step: 0.05, unit: 's' })}
+                            {renderNumberControl('llm_pipeline', 'first_token_timeout', 'First Token Timeout', '', { min: 1.5, max: 12, step: 0.5, unit: 's' })}
+                            {renderToggleControl('llm_pipeline', 'race', 'מצב Race (ראשי מול גיבוי)', 'מריץ שני מודלים במקביל (2x בקשות).')}
+                            {renderNumberControl('tts_pipeline', 'prebuffer_ms', 'TTS Prebuffer', '', { min: 0, max: 250, step: 10, unit: 'ms' })}
+                            {renderNumberControl('tts_pipeline', 'playout_lead_sec', 'Playout Lead', '', { min: 0.2, max: 1.5, step: 0.05, unit: 's' })}
+                            {renderNumberControl('tts_pipeline', 'merge_rest_sec', 'מיזוג משפטים (Merge Rest)', '', { min: 0, max: 1.5, step: 0.05, unit: 's' })}
+                            {renderToggleControl('tts_pipeline', 'elevenlabs_previous_text', 'ElevenLabs Previous Text', 'שמירת רצף אינטונציה.')}
+                        </div>
+                    )}
                 </div>
             )}
         </div>
